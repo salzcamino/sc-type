@@ -101,6 +101,24 @@ print(adata.obs['sctype_classification'].value_counts())
 # Visualize
 sc.pl.umap(adata, color=['leiden', 'sctype_classification'])
 
+# Visualize marker genes
+from sctype_python import ScType
+sctype = ScType()
+
+plots = sctype.visualize_markers(
+    adata,
+    tissue_type="Immune system",
+    annotation_col='sctype_classification',
+    top_n=5,
+    save_plots=True,
+    output_dir="pbmc_marker_plots"
+)
+
+# Show dotplot and heatmap
+import matplotlib.pyplot as plt
+plots['dotplot'].show()
+plots['heatmap'].show()
+
 # Save annotated data
 adata.write("pbmc3k_sctype_annotated.h5ad")
 ```
@@ -222,6 +240,75 @@ adata = run_sctype(adata, tissue_type="Immune system", layer=None, scaled=False)
 # Use specific layer
 adata = run_sctype(adata, tissue_type="Immune system", layer='log1p_transformed')
 ```
+
+### Marker Visualization
+
+Visualize the expression of marker genes used for cell type determination with comprehensive plots:
+
+```python
+from sctype_python import ScType
+
+# After annotation
+sctype = ScType()
+adata = sctype.annotate(adata, tissue_type="Immune system")
+
+# Generate all visualization types
+plots = sctype.visualize_markers(
+    adata,
+    tissue_type="Immune system",
+    annotation_col="sctype_classification",
+    top_n=5,
+    plot_types=['violin', 'umap', 'dotplot', 'heatmap'],
+    save_plots=True,
+    output_dir="marker_plots"
+)
+
+# Access individual plots
+plots['dotplot'].show()
+plots['heatmap'].show()
+
+# Plot specific cell type violin plots
+plots['violin']['CD4+ T cells'].show()
+```
+
+**Visualization Types:**
+
+1. **Violin Plots**: Expression distribution of each marker across all cell types
+   - Separate plots for each annotated cell type
+   - Shows both positive (+) and negative (-) markers
+   - Confirms marker expression patterns
+
+2. **UMAP Feature Plots**: Spatial visualization of marker expression
+   - Feature plots for each marker gene on UMAP
+   - Reveals marker specificity and co-localization
+   - Requires UMAP coordinates in adata.obsm
+
+3. **Dotplot**: Combined view of all markers across all cell types
+   - Dot size = percentage of cells expressing
+   - Dot color = average expression level
+   - Best for overall comparison
+
+4. **Heatmap**: Hierarchically clustered heatmap of average expression
+   - Rows = marker genes, Columns = cell types
+   - Scaled expression (blue-white-red colormap)
+   - Reveals co-expression patterns
+
+**Parameters:**
+- `adata`: AnnData object with annotations
+- `tissue_type`: Tissue type used for annotation
+- `annotation_col`: Column with cell type annotations (default: 'sctype_classification')
+- `database_file`: Custom marker database (optional)
+- `layer`: Layer to use for expression (default: None uses .X)
+- `top_n`: Number of top markers per cell type (default: 5)
+- `plot_types`: List of plot types to generate (default: all)
+- `save_plots`: Save plots to files (default: False)
+- `output_dir`: Directory for saved plots (default: 'sctype_plots')
+
+**Output Files** (when `save_plots=True`):
+- `violin_[CellType].png` - Violin plots for each cell type (300 dpi)
+- `umap_[CellType].png` - UMAP plots for each cell type (300 dpi)
+- `dotplot_all_markers.png` - Combined dotplot (300 dpi)
+- `heatmap_all_markers.png` - Expression heatmap (300 dpi)
 
 ## Integration with Scanpy Workflows
 

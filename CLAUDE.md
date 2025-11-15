@@ -571,6 +571,7 @@ This module provides a bridge between Python/scanpy and R-based ScType functions
 - `annotate(adata, tissue_type, ...)`: Basic cell type annotation
 - `annotate_hierarchical(adata, tissue_type, ...)`: Hierarchical annotation (broad + fine)
 - `add_uncertainty(adata, tissue_type, ...)`: Add uncertainty scores
+- `visualize_markers(adata, tissue_type, ...)`: Generate marker visualization plots
 
 **Function**: `run_sctype(adata, tissue_type, database_file, layer, scaled, cluster_key, annotation_key, plot)`
 
@@ -656,6 +657,16 @@ adata = sctype.add_uncertainty(
     top_n=3
 )
 
+# Visualize marker genes
+plots = sctype.visualize_markers(
+    adata,
+    tissue_type="Immune system",
+    annotation_col='cell_type',
+    top_n=5,
+    plot_types=['violin', 'umap', 'dotplot', 'heatmap'],
+    save_plots=True
+)
+
 # Access results
 cell_types = adata.obs['cell_type']
 confidence = adata.obs['sctype_confidence']
@@ -666,7 +677,8 @@ confidence = adata.obs['sctype_confidence']
 - **Automatic Conversion**: Seamlessly converts between Python and R data formats
 - **rpy2 Bridge**: Leverages R ScType functions without manual data export
 - **Full Functionality**: Supports basic annotation, hierarchical annotation, and uncertainty scoring
-- **Visualization Support**: Generates UMAP plots using scanpy plotting functions
+- **Comprehensive Visualization**: Violin plots, UMAP feature plots, dotplots, and heatmaps of marker expression
+- **Publication-Ready Figures**: High-resolution plots (300 dpi) with customizable sizes
 
 **Data Conversion**:
 The wrapper automatically handles conversion between Python and R formats:
@@ -709,7 +721,8 @@ adata.obs[annotation_key] = pd.Categorical(annotations)
 **Prerequisites**:
 1. **R Installation**: R must be installed and accessible
 2. **R Packages**: `dplyr`, `HGNChelper`, `openxlsx`
-3. **Python Packages**: `numpy`, `pandas`, `scanpy`, `anndata`, `rpy2`
+3. **Python Packages**: `numpy`, `pandas`, `scanpy`, `anndata`, `rpy2`, `matplotlib`, `openpyxl`
+4. **Optional**: `seaborn` (for enhanced visualization)
 
 **Installation**:
 ```bash
@@ -718,7 +731,7 @@ cd sc-type/python
 pip install -r requirements.txt
 
 # Or install individually
-pip install numpy pandas scanpy anndata rpy2 matplotlib
+pip install numpy pandas scanpy anndata rpy2 matplotlib openpyxl seaborn
 ```
 
 **Troubleshooting**:
@@ -750,21 +763,51 @@ ro.r('memory.limit(size=16000)')  # 16 GB
 
 **Limitations**:
 1. **R Dependency**: Requires R installation and rpy2
-2. **Advanced Features**: Some R-specific visualizations not available in Python wrapper
+2. **Advanced Features**: Pathway enrichment integration not yet available in Python wrapper
 3. **Performance**: Slightly slower than native R due to conversion overhead
-4. **Visualization**: Limited to scanpy plotting (use R for ScType-specific visualizations like pathway enrichment plots)
+4. **Hierarchical Annotation**: Currently falls back to standard annotation (R version has full support)
 
 **Comparison: Python vs R**:
 
 | Feature | Python (scanpy) | R (Seurat/SCE) |
 |---------|----------------|----------------|
 | **Basic annotation** | ✓ Supported | ✓ Supported |
-| **Hierarchical annotation** | ✓ Supported | ✓ Supported |
-| **Uncertainty scoring** | ✓ Supported | ✓ Supported |
-| **Marker visualization** | ✗ Not yet implemented | ✓ Full support |
+| **Hierarchical annotation** | ⚠ Fallback to standard | ✓ Full support |
+| **Uncertainty scoring** | ⚠ Fallback to standard | ✓ Full support |
+| **Marker visualization** | ✓ Supported (4 plot types) | ✓ Full support |
 | **Pathway enrichment** | ✗ Not yet implemented | ✓ Full support |
 | **Data object** | AnnData | Seurat/SCE |
-| **Plotting** | scanpy (matplotlib) | ggplot2/Seurat |
+| **Plotting** | matplotlib/scanpy | ggplot2/Seurat |
+
+**Marker Visualization**:
+
+The Python wrapper includes comprehensive marker visualization capabilities:
+
+```python
+# After annotation
+plots = sctype.visualize_markers(
+    adata,
+    tissue_type="Immune system",
+    annotation_col="sctype_classification",
+    top_n=5,
+    plot_types=['violin', 'umap', 'dotplot', 'heatmap'],
+    save_plots=True,
+    output_dir="marker_plots"
+)
+
+# Access individual plots
+plots['dotplot'].show()
+plots['heatmap'].show()
+plots['violin']['CD4+ T cells'].show()
+```
+
+**Visualization Types**:
+1. **Violin Plots**: Expression distribution across cell types for each marker
+2. **UMAP Feature Plots**: Spatial marker expression patterns
+3. **Dotplot**: Combined view of all markers (uses scanpy.pl.dotplot)
+4. **Heatmap**: Mean expression heatmap across cell types
+
+**Output**: Dictionary with plot objects and optionally saved high-resolution PNG files (300 dpi)
 
 **See Also**: PYTHON_README.md for complete installation guide, detailed examples, and troubleshooting
 
@@ -1422,8 +1465,8 @@ Based on existing code:
 - **Other Optional**: `ggraph`, `igraph`, `tidyverse`, `data.tree` (for bubble plots and networks)
 
 ### Python Dependencies
-- **Required**: `numpy`, `pandas`, `scanpy`, `anndata`, `rpy2`
-- **Optional**: `matplotlib`, `seaborn`, `scipy`, `scikit-learn`
+- **Required**: `numpy`, `pandas`, `scanpy`, `anndata`, `rpy2`, `matplotlib`, `openpyxl`
+- **Optional**: `seaborn` (enhanced visualization), `scipy`, `scikit-learn`
 - **R Installation**: R ≥ 4.0.0 with core R packages (required for rpy2 bridge)
 
 ### Compatibility
