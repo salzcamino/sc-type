@@ -32,10 +32,12 @@ sctype_score <- function(scRNAseqData, scaled = !0, gs, gs2 = NULL, gene_names_t
   
   # subselect genes only found in data
   names_gs_cp = names(gs); names_gs_2_cp = names(gs2);
-  gs = lapply(1:length(gs), function(d_){ 
+  gs = lapply(seq_along(gs), function(d_){
     GeneIndToKeep = rownames(scRNAseqData) %in% as.character(gs[[d_]]); rownames(scRNAseqData)[GeneIndToKeep]})
-  gs2 = lapply(1:length(gs2), function(d_){ 
-    GeneIndToKeep = rownames(scRNAseqData) %in% as.character(gs2[[d_]]); rownames(scRNAseqData)[GeneIndToKeep]})
+  if(!is.null(gs2)){
+    gs2 = lapply(seq_along(gs2), function(d_){
+      GeneIndToKeep = rownames(scRNAseqData) %in% as.character(gs2[[d_]]); rownames(scRNAseqData)[GeneIndToKeep]})
+  }
   names(gs) = names_gs_cp; names(gs2) = names_gs_2_cp;
   cell_markers_genes_score = marker_sensitivity[marker_sensitivity$gene_ %in% unique(unlist(gs)),]
   
@@ -51,13 +53,22 @@ sctype_score <- function(scRNAseqData, scaled = !0, gs, gs2 = NULL, gene_names_t
   Z = Z[unique(c(unlist(gs),unlist(gs2))), ]
   
   # combine scores
-  es = do.call("rbind", lapply(names(gs), function(gss_){ 
+  es = do.call("rbind", lapply(names(gs), function(gss_){
     sapply(1:ncol(Z), function(j) {
-      gs_z = Z[gs[[gss_]], j]; gz_2 = Z[gs2[[gss_]], j] * -1
-      sum_t1 = (sum(gs_z) / sqrt(length(gs_z))); sum_t2 = sum(gz_2) / sqrt(length(gz_2));
-      if(is.na(sum_t2)){
+      gs_z = Z[gs[[gss_]], j];
+      sum_t1 = (sum(gs_z) / sqrt(length(gs_z)));
+
+      # Handle negative markers
+      if(!is.null(gs2) && length(gs2[[gss_]]) > 0){
+        gz_2 = Z[gs2[[gss_]], j] * -1
+        sum_t2 = sum(gz_2) / sqrt(length(gz_2));
+        if(is.na(sum_t2)){
+          sum_t2 = 0;
+        }
+      } else {
         sum_t2 = 0;
       }
+
       sum_t1 + sum_t2
     })
   })) 
