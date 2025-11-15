@@ -33,7 +33,9 @@ sc-type/
 │   ├── sctype_hierarchical.R    # Hierarchical annotation (Seurat)
 │   ├── sctype_hierarchical_sce.R # Hierarchical annotation (SingleCellExperiment)
 │   ├── sctype_visualize.R       # Marker visualization for Seurat
-│   └── sctype_visualize_sce.R   # Marker visualization for SingleCellExperiment
+│   ├── sctype_visualize_sce.R   # Marker visualization for SingleCellExperiment
+│   ├── sctype_uncertainty.R     # Uncertainty scoring for Seurat
+│   └── sctype_uncertainty_sce.R # Uncertainty scoring for SingleCellExperiment
 ├── ScTypeDB_full.xlsx           # Complete cell marker database
 ├── ScTypeDB_short.xlsx          # Abbreviated marker database
 ├── ScTypeDB_enhanced.xlsx       # Enhanced marker database (122 cell types)
@@ -53,6 +55,7 @@ sc-type/
 ├── CLAUDE.md                    # AI assistant guide (this file)
 ├── SINGLECELLEXPERIMENT_README.md # SCE-specific documentation
 ├── VISUALIZATION_README.md      # Marker visualization guide
+├── UNCERTAINTY_README.md        # Uncertainty scoring guide
 └── LICENSE                      # GNU GPL v3.0 license
 ```
 
@@ -293,6 +296,143 @@ plots <- visualize_sctype_markers_sce(
 **Returns**: List of ggplot objects (violin, umap, dotplot) and ComplexHeatmap object (heatmap)
 
 **See Also**: VISUALIZATION_README.md for detailed usage guide and examples
+
+### 7. Uncertainty Scoring (`R/sctype_uncertainty.R` and `R/sctype_uncertainty_sce.R`)
+
+**Purpose**: Quantify confidence and uncertainty in cell type annotations.
+
+These functions calculate comprehensive confidence metrics for ScType annotations, providing top N candidate cell types per cluster, confidence scores, and visualizations of annotation uncertainty.
+
+**Main Functions**:
+- `add_sctype_uncertainty()` (Seurat) / `add_sctype_uncertainty_sce()` (SCE): Add uncertainty metrics to object
+- `visualize_sctype_uncertainty()` (Seurat) / `visualize_sctype_uncertainty_sce()` (SCE): Visualize uncertainty
+
+**Function**: `add_sctype_uncertainty(seurat_object, known_tissue_type, database_file, assay, scaled, cluster_col, top_n, annotation_prefix)`
+
+**Parameters**:
+- `seurat_object` / `sce_object`: Object with clustering
+- `known_tissue_type`: Tissue type (required)
+- `database_file`: Path to marker database (default: GitHub URL)
+- `assay` / `assay_name`: Assay for expression data (default: "RNA" / "logcounts")
+- `scaled`: Use scaled data (default: TRUE)
+- `cluster_col`: Column with clusters (default: "seurat_clusters" / "cluster")
+- `top_n`: Number of top candidates to report (default: 3)
+- `annotation_prefix`: Prefix for new columns (default: "sctype")
+
+**New Metadata Columns Added**:
+- `sctype_top1`, `sctype_top2`, `sctype_top3`: Top N cell type candidates
+- `sctype_score1`, `sctype_score2`, `sctype_score3`: Raw ScType scores for each candidate
+- `sctype_confidence`: Normalized confidence score (0-1)
+- `sctype_confidence_level`: Categorical confidence (High/Medium/Low)
+- `sctype_score_diff`: Score difference between top 2 candidates
+
+**Confidence Metrics**:
+
+1. **Raw Scores**: Direct ScType algorithm output (higher = better match)
+2. **Score Difference**: `score1 - score2` (larger = more confident, clear winner)
+3. **Confidence Score**: 0-1 normalized metric combining absolute and relative confidence
+   - 0.0-0.4 = Low confidence
+   - 0.4-0.7 = Medium confidence
+   - 0.7-1.0 = High confidence
+4. **Confidence Level**: Categorical classification (High/Medium/Low/Unknown)
+
+**Visualization Types** (from `visualize_sctype_uncertainty()`):
+
+1. **Top Candidates Plot**
+   - Bar plot showing top 1-3 cell types per cluster with scores
+   - Bars colored by rank (1st=red, 2nd=blue, 3rd=green)
+   - Cell type labels on bars
+   - Identifies ambiguous clusters
+
+2. **UMAP Confidence Plots**
+   - Plot A: Continuous confidence score (blue=low → yellow → red=high)
+   - Plot B: Categorical confidence level (green/yellow/red)
+   - Reveals spatial patterns in annotation quality
+
+3. **Confidence Distribution**
+   - Plot A: Bar chart of confidence levels across all cells
+   - Plot B: Score differences per cluster
+   - Assesses overall annotation quality
+
+4. **Uncertainty Heatmap**
+   - Compact tile plot: one tile per cluster
+   - Tile color = confidence (red=low, yellow=mid, green=high)
+   - Cell type and score displayed in each tile
+   - At-a-glance summary
+
+**Usage Example** (Seurat):
+```r
+source("R/sctype_uncertainty.R")
+
+# Add uncertainty scores
+seurat_obj <- add_sctype_uncertainty(
+    seurat_obj,
+    known_tissue_type = "Immune system",
+    top_n = 3
+)
+
+# Visualize uncertainty
+plots <- visualize_sctype_uncertainty(
+    seurat_obj,
+    plot_types = c("candidates", "umap", "distribution", "heatmap"),
+    save_plots = TRUE,
+    output_dir = "uncertainty_plots"
+)
+
+# Access plots
+print(plots$candidates)      # Top candidates per cluster
+print(plots$umap$score)      # UMAP by confidence score
+print(plots$distribution$levels)  # Confidence level distribution
+print(plots$heatmap)         # Uncertainty heatmap
+
+# Identify low-confidence clusters
+low_conf <- seurat_obj@meta.data %>%
+    filter(sctype_confidence_level == "Low") %>%
+    pull(seurat_clusters) %>%
+    unique()
+```
+
+**Usage Example** (SingleCellExperiment):
+```r
+source("R/sctype_uncertainty_sce.R")
+
+sce <- add_sctype_uncertainty_sce(
+    sce,
+    known_tissue_type = "Brain",
+    assay_name = "logcounts",
+    top_n = 3
+)
+
+plots <- visualize_sctype_uncertainty_sce(sce, save_plots = TRUE)
+
+# View cluster-level results
+metadata(sce)[["sctype_uncertainty_clusters"]]
+```
+
+**Key Features**:
+- Identifies ambiguous annotations requiring manual review
+- Provides top N candidates (not just best match)
+- Quantifies annotation confidence objectively
+- Helps prioritize high-confidence cells for downstream analysis
+- Detects potentially novel or transitional cell states
+- Publication-ready uncertainty visualizations
+
+**Use Cases**:
+1. **Quality Control**: Filter to high-confidence annotations for sensitive analyses
+2. **Manual Curation**: Prioritize low-confidence clusters for expert review
+3. **Novel Cell Types**: Identify clusters with low scores for all known types
+4. **Transitional States**: Detect clusters with similar scores for multiple types
+5. **Publication**: Report confidence metrics to demonstrate annotation quality
+
+**Output Files** (when `save_plots = TRUE`):
+- `top_candidates.png` - Top 3 candidates per cluster (14" × 10", 300 dpi)
+- `umap_confidence.png` - UMAP plots colored by confidence (16" × 8", 300 dpi)
+- `confidence_distribution.png` - Distribution plots (14" × 10", 300 dpi)
+- `uncertainty_heatmap.png` - Compact heatmap summary (12" × 8", 300 dpi)
+
+**Returns**: List of ggplot objects for all visualization types
+
+**See Also**: UNCERTAINTY_README.md for detailed usage guide and interpretation
 
 ---
 
