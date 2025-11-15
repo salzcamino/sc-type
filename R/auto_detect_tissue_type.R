@@ -18,17 +18,23 @@ auto_detect_tissue_type <- function(path_to_db_file, seuratObject, scaled, assay
         # prepare gene sets
         gs_list = gene_sets_prepare(path_to_db_file, tissue);
 
-        # check Seurat version
-        package_type <- substr(packageVersion("Seurat"), 1, 1)
+        # check Seurat version and extract data
         data_type <- if (scaled) "scale.data" else "counts"
-        obj <- if (package_type == "5") {
-          as.matrix(seuratObject[[assay]]$data_type)
+        package_type <- data_type %in% names(attributes(seuratObject[[assay]]))
+
+        if(package_type){
+            # Seurat v4 - use @ accessor
+            obj <- as.matrix(slot(seuratObject[[assay]], data_type))
         } else {
-          as.matrix(seuratObject[[assay]]@data_type)
+            # Seurat v5 - use $ accessor
+            if (data_type == "scale.data") {
+                obj <- as.matrix(seuratObject[[assay]]$scale.data)
+            } else {
+                obj <- as.matrix(seuratObject[[assay]]$counts)
+            }
         }
-        
-        es.max = sctype_score(scRNAseqData = obj, scaled = scaled, gs = gs_list$gs_positive, gs2 = gs_list$gs_negative, 
-                              marker_sensitivity = gs_list$marker_sensitivity, verbose=!0);
+
+        es.max = sctype_score(scRNAseqData = obj, scaled = scaled, gs = gs_list$gs_positive, gs2 = gs_list$gs_negative);
         
         cL_resutls = do.call("rbind", lapply(unique(seuratObject@meta.data$seurat_clusters), function(cl){
             
