@@ -28,8 +28,10 @@ sc-type/
 │   ├── gene_sets_prepare.R      # Gene set preparation from marker database
 │   ├── sctype_score_.R          # ScType scoring algorithm
 │   ├── auto_detect_tissue_type.R # Tissue type auto-detection
-│   ├── sctype_wrapper.R         # Convenience wrapper function
-│   └── sctype_hierarchical.R    # Hierarchical cell type annotation
+│   ├── sctype_wrapper.R         # Convenience wrapper for Seurat objects
+│   ├── sctype_wrapper_sce.R     # Convenience wrapper for SingleCellExperiment
+│   ├── sctype_hierarchical.R    # Hierarchical annotation (Seurat)
+│   └── sctype_hierarchical_sce.R # Hierarchical annotation (SingleCellExperiment)
 ├── ScTypeDB_full.xlsx           # Complete cell marker database
 ├── ScTypeDB_short.xlsx          # Abbreviated marker database
 ├── ScTypeDB_enhanced.xlsx       # Enhanced marker database (122 cell types)
@@ -302,6 +304,117 @@ p1 / p2
 3. **Quality control**: Identify clusters with confident fine annotations (where broad ≠ fine)
 4. **Publication**: Report both levels to provide context and specificity
 
+### SingleCellExperiment Support
+
+**Purpose**: Use ScType with SingleCellExperiment objects instead of Seurat.
+
+ScType now provides full support for **SingleCellExperiment (SCE)** objects through parallel implementations of all major functions. This allows users who prefer Bioconductor workflows to use ScType seamlessly.
+
+#### Basic SCE Annotation
+
+```r
+# Load required packages
+library(SingleCellExperiment)
+library(scater)
+
+# Load wrapper
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_wrapper_sce.R")
+
+# Run ScType annotation
+sce <- run_sctype_sce(
+    sce_object = sce,
+    known_tissue_type = "Immune system",  # or NULL for auto-detection
+    assay_name = "logcounts",             # Use "counts" for raw data
+    scaled = TRUE,                         # TRUE if using logcounts
+    cluster_col = "cluster",               # Column in colData with clusters
+    custom_marker_file = NULL,            # NULL uses default database
+    plot = TRUE,                           # Requires UMAP in reducedDims
+    name = "sctype_classification"         # Column name for results
+)
+
+# View results
+table(colData(sce)$sctype_classification)
+```
+
+#### Hierarchical SCE Annotation
+
+```r
+# Load hierarchical function
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_hierarchical_sce.R")
+
+# Run hierarchical annotation
+sce <- run_sctype_hierarchical_sce(
+    sce_object = sce,
+    known_tissue_type = "Immune system",
+    assay_name = "logcounts",
+    scaled = TRUE,
+    cluster_col = "cluster",
+    custom_marker_file = "https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_hierarchical.xlsx",
+    plot = TRUE,
+    broad_name = "sctype_broad",
+    fine_name = "sctype_fine"
+)
+
+# View both annotation levels
+print(table(colData(sce)$sctype_broad))
+print(table(colData(sce)$sctype_fine))
+
+# Display hierarchical table
+print_hierarchy_table_sce(sce)
+
+# Query specific cluster
+cluster_info <- get_cluster_hierarchy_sce(sce, cluster_id = 0)
+```
+
+#### Key Differences from Seurat
+
+| Aspect | Seurat | SingleCellExperiment |
+|--------|--------|---------------------|
+| **Data access** | `seurat_obj[["RNA"]]@scale.data` | `assay(sce, "logcounts")` |
+| **Metadata** | `seurat_obj@meta.data` | `colData(sce)` |
+| **Reduced dims** | `Reductions(seurat_obj)` | `reducedDim(sce, "UMAP")` |
+| **Default assay** | "RNA" | "logcounts" or "counts" |
+| **Cluster column** | `seurat_clusters` (automatic) | Must specify `cluster_col` |
+
+#### SCE Workflow Example
+
+```r
+# Complete SCE workflow with hierarchical annotation
+library(SingleCellExperiment)
+library(scater)
+library(scran)
+
+# Assuming you have a SingleCellExperiment object 'sce'
+
+# 1. Normalize if not already done
+sce <- logNormCounts(sce)
+
+# 2. Perform clustering if not already done
+sce <- runPCA(sce)
+sce <- runUMAP(sce)
+clusters <- clusterCells(sce, use.dimred = "PCA")
+colData(sce)$cluster <- clusters
+
+# 3. Run hierarchical ScType annotation
+source("R/sctype_hierarchical_sce.R")
+sce <- run_sctype_hierarchical_sce(sce, known_tissue_type = "Immune system", plot = TRUE)
+
+# 4. Visualize results
+library(ggplot2)
+plotUMAP(sce, colour_by = "sctype_broad")
+plotUMAP(sce, colour_by = "sctype_fine")
+```
+
+#### Function Correspondence
+
+| Seurat Version | SingleCellExperiment Version |
+|---------------|------------------------------|
+| `run_sctype()` | `run_sctype_sce()` |
+| `run_sctype_hierarchical()` | `run_sctype_hierarchical_sce()` |
+| `get_cluster_hierarchy()` | `get_cluster_hierarchy_sce()` |
+| `print_hierarchy_table()` | `print_hierarchy_table_sce()` |
+| `sctype_source()` | `sctype_source_sce()` |
+
 ---
 
 ## Key Conventions and Design Patterns
@@ -487,13 +600,62 @@ seurat_obj <- run_sctype(seurat_obj, known_tissue_type = "Immune system")
 DimPlot(seurat_obj, group.by = "sctype_classification")
 ```
 
-### Other Single-Cell Tools
+### SingleCellExperiment Pipeline Integration
 
-ScType can work with any tool that provides:
+ScType integrates seamlessly with Bioconductor's SingleCellExperiment workflow:
+
+```r
+# Standard SingleCellExperiment/scater workflow
+library(SingleCellExperiment)
+library(scater)
+library(scran)
+
+# Normalize and preprocess
+sce <- logNormCounts(sce)
+sce <- runPCA(sce, ncomponents = 50)
+
+# Clustering
+g <- buildSNNGraph(sce, use.dimred = "PCA")
+clusters <- igraph::cluster_louvain(g)$membership
+colData(sce)$cluster <- clusters
+
+# Dimensionality reduction for visualization
+sce <- runUMAP(sce, dimred = "PCA")
+sce <- runTSNE(sce, dimred = "PCA")
+
+# Insert ScType here
+source("R/sctype_wrapper_sce.R")
+sce <- run_sctype_sce(sce, known_tissue_type = "Immune system",
+                       cluster_col = "cluster", plot = TRUE)
+
+# Continue with downstream analysis
+plotUMAP(sce, colour_by = "sctype_classification")
+```
+
+### Other Single-Cell Tools (Scanpy, etc.)
+
+ScType core functions can work with any tool that provides:
 1. Scaled expression matrix (genes × cells)
 2. Cluster assignments
 
-Extract these from SingleCellExperiment, Scanpy, or other frameworks and use `sctype_score()` directly.
+For Python/Scanpy users, extract the expression matrix and cluster assignments, then use `sctype_score()` directly in R:
+
+```r
+# Example: Using ScType with Scanpy-processed data
+# (Assume data exported from Python as CSV files)
+expression_matrix <- read.csv("scaled_expression.csv", row.names = 1)
+clusters <- read.csv("clusters.csv")$cluster
+
+# Run ScType scoring
+source("R/gene_sets_prepare.R")
+source("R/sctype_score_.R")
+gs_list <- gene_sets_prepare("ScTypeDB_full.xlsx", "Immune system")
+es.max <- sctype_score(as.matrix(expression_matrix), scaled = TRUE,
+                       gs = gs_list$gs_positive, gs2 = gs_list$gs_negative)
+
+# Aggregate by cluster and assign cell types
+# (Same as standard workflow)
+```
 
 ---
 
@@ -625,10 +787,17 @@ Based on existing code:
 
 ## Version Information
 
-- **R Dependencies**: `dplyr`, `Seurat`, `HGNChelper`, `openxlsx`
-- **Optional**: `ggraph`, `igraph`, `tidyverse`, `data.tree` (for bubble plots)
-- **Seurat Compatibility**: v4 and v5
-- **Tested R Version**: See session info in README.md (HGNChelper_0.8.1, SeuratObject_4.0.2, Seurat_4.0.3, dplyr_1.0.6)
+### Core Dependencies
+- **Required**: `dplyr`, `HGNChelper`, `openxlsx`
+- **For Seurat**: `Seurat`, `SeuratObject` (v4 or v5)
+- **For SingleCellExperiment**: `SingleCellExperiment`, `SummarizedExperiment`, `scater` (optional, for visualization)
+- **Optional**: `ggraph`, `igraph`, `tidyverse`, `data.tree` (for bubble plots), `patchwork` (for multi-panel plots)
+
+### Compatibility
+- **Seurat**: v4 and v5 fully supported
+- **SingleCellExperiment**: Bioconductor 3.14+ (tested with 3.18)
+- **R Version**: R ≥ 4.0.0 (tested with R 4.1+)
+- **Tested Package Versions**: HGNChelper_0.8.1, SeuratObject_4.0.2, Seurat_4.0.3, dplyr_1.0.6, SingleCellExperiment_1.18+
 
 ---
 
