@@ -74,14 +74,14 @@ run_sctype <- function(seurat_object, known_tissue_type = NULL, assay = "RNA", s
     
     # Calculate scType scores
     if(package_type){
-        
+
         print("Using Seurat v4 object")
         es.max = sctype_score(scRNAseqData = slot(seurat_object[[assay]], data_type),
-                              scaled = TRUE,gs = gs_list$gs_positive, 
-                              gs2 = gs_list$gs_negative)   
-        
+                              scaled = scaled, gs = gs_list$gs_positive,
+                              gs2 = gs_list$gs_negative)
+
     } else{
-        
+
         print("Using Seurat v5 object")
 
         if (data_type == "scale.data") {
@@ -89,10 +89,10 @@ run_sctype <- function(seurat_object, known_tissue_type = NULL, assay = "RNA", s
         } else {
             scRNAseqData <- seurat_object[[assay]]$counts
         }
-        
+
         es.max = sctype_score(scRNAseqData = as.matrix(scRNAseqData),
-                              scaled = TRUE,gs = gs_list$gs_positive, 
-                              gs2 = gs_list$gs_negative)       
+                              scaled = scaled, gs = gs_list$gs_positive,
+                              gs2 = gs_list$gs_negative)
     }
     
     # Extract top cell types for each cluster
