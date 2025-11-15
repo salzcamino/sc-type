@@ -52,15 +52,18 @@ sctype_source_v2 <- function(){
 #'   - TRUE: Slower but more robust permutation testing (requires n_permutations parameter)
 #' @param n_permutations Number of permutations if use_permutation = TRUE (default: 1000)
 #' @param cluster_col Metadata column with cluster assignments (default: "seurat_clusters")
+#' @param top_n Number of top candidate cell types to report per cluster (default: 3)
 #' @param verbose Print detailed messages (default: TRUE)
 #'
 #' @return Modified Seurat object with new metadata columns:
 #'   - [name]: Cell type annotations (Unknown if FDR >= threshold)
-#'   - [name]_score: Raw ScType scores
+#'   - [name]_score: Raw ScType scores for top candidate
 #'   - [name]_zscore: Z-scores for statistical testing
 #'   - [name]_pvalue: Uncorrected p-values
 #'   - [name]_fdr: FDR-corrected p-values
 #'   - [name]_confidence: Confidence level (High/Medium/Low/Very Low)
+#'   - [name]_top1, _top2, ..., _topN: Top N cell type candidates
+#'   - [name]_score1, _score2, ..., _scoreN: Scores for each top N candidate
 #'
 #' @import dplyr
 #' @import Seurat
@@ -74,6 +77,17 @@ sctype_source_v2 <- function(){
 #' seurat_obj <- run_sctype_v2(seurat_obj,
 #'                             known_tissue_type = "Immune system",
 #'                             fdr_threshold = 0.01)
+#'
+#' # Get top 5 candidates instead of default 3
+#' seurat_obj <- run_sctype_v2(seurat_obj,
+#'                             known_tissue_type = "Immune system",
+#'                             top_n = 5)
+#'
+#' # View top candidates for cluster 0
+#' cluster_0_cells <- seurat_obj@meta.data[seurat_obj$seurat_clusters == 0, ]
+#' head(cluster_0_cells[, c("sctype_v2_top1", "sctype_v2_score1",
+#'                          "sctype_v2_top2", "sctype_v2_score2",
+#'                          "sctype_v2_top3", "sctype_v2_score3")], 1)
 #'
 #' # Use permutation testing (slower but robust)
 #' seurat_obj <- run_sctype_v2(seurat_obj,
@@ -91,6 +105,7 @@ run_sctype_v2 <- function(seurat_object,
                           use_permutation = FALSE,
                           n_permutations = 1000,
                           cluster_col = "seurat_clusters",
+                          top_n = 3,
                           verbose = TRUE) {
 
     # Load functions
@@ -172,26 +187,38 @@ run_sctype_v2 <- function(seurat_object,
         # Sum scores across cells in cluster
         cluster_scores <- rowSums(es.max[, cells_in_cluster, drop = FALSE])
 
-        # Get top cell type
-        top_idx <- which.max(cluster_scores)
-        top_celltype <- names(cluster_scores)[top_idx]
-        top_score <- cluster_scores[top_idx]
-
-        # Get second-best for comparison
+        # Sort scores to get top N
         sorted_scores <- sort(cluster_scores, decreasing = TRUE)
-        second_score <- if (length(sorted_scores) > 1) sorted_scores[2] else 0
-        second_celltype <- if (length(sorted_scores) > 1) names(sorted_scores)[2] else "None"
+        n_available <- min(top_n, length(sorted_scores))
 
-        data.frame(
+        # Create base data frame
+        result <- data.frame(
             cluster = cl,
-            top_celltype = top_celltype,
-            top_score = top_score,
-            second_celltype = second_celltype,
-            second_score = second_score,
-            score_difference = top_score - second_score,
+            top_celltype = names(sorted_scores)[1],
+            top_score = sorted_scores[1],
             ncells = ncells,
             stringsAsFactors = FALSE
         )
+
+        # Add top N cell types and scores
+        for (i in 1:top_n) {
+            if (i <= n_available) {
+                result[[paste0("top", i, "_celltype")]] <- names(sorted_scores)[i]
+                result[[paste0("top", i, "_score")]] <- sorted_scores[i]
+            } else {
+                result[[paste0("top", i, "_celltype")]] <- "None"
+                result[[paste0("top", i, "_score")]] <- 0
+            }
+        }
+
+        # Calculate score differences (useful for ambiguity detection)
+        if (n_available >= 2) {
+            result$score_difference <- sorted_scores[1] - sorted_scores[2]
+        } else {
+            result$score_difference <- sorted_scores[1]
+        }
+
+        return(result)
     }))
 
     # Calculate statistical significance
@@ -258,6 +285,12 @@ run_sctype_v2 <- function(seurat_object,
     seurat_object_res@meta.data[[paste0(name, "_fdr")]] <- NA
     seurat_object_res@meta.data[[paste0(name, "_confidence")]] <- ""
 
+    # Initialize top N columns
+    for (i in 1:top_n) {
+        seurat_object_res@meta.data[[paste0(name, "_top", i)]] <- ""
+        seurat_object_res@meta.data[[paste0(name, "_score", i)]] <- NA
+    }
+
     for (j in unique(cluster_results$cluster)) {
         cl_result <- cluster_results[cluster_results$cluster == j, ]
         cluster_cells <- seurat_object_res@meta.data[[cluster_col]] == j
@@ -268,6 +301,12 @@ run_sctype_v2 <- function(seurat_object,
         seurat_object_res@meta.data[cluster_cells, paste0(name, "_pvalue")] <- cl_result$pvalue
         seurat_object_res@meta.data[cluster_cells, paste0(name, "_fdr")] <- cl_result$fdr
         seurat_object_res@meta.data[cluster_cells, paste0(name, "_confidence")] <- as.character(cl_result$confidence)
+
+        # Add top N candidates and scores
+        for (i in 1:top_n) {
+            seurat_object_res@meta.data[cluster_cells, paste0(name, "_top", i)] <- cl_result[[paste0("top", i, "_celltype")]]
+            seurat_object_res@meta.data[cluster_cells, paste0(name, "_score", i)]] <- cl_result[[paste0("top", i, "_score")]]
+        }
     }
 
     # Print summary
@@ -287,6 +326,8 @@ run_sctype_v2 <- function(seurat_object,
         message(sprintf("  - %s_pvalue (uncorrected p-values)", name))
         message(sprintf("  - %s_fdr (FDR-corrected p-values)", name))
         message(sprintf("  - %s_confidence (High/Medium/Low/Very Low)", name))
+        message(sprintf("  - %s_top1, _top2, ..., _top%d (top %d cell type candidates)", name, top_n, top_n))
+        message(sprintf("  - %s_score1, _score2, ..., _score%d (scores for top %d)", name, top_n, top_n))
         message("========================================\n")
     }
 
@@ -397,4 +438,123 @@ print.sctype_version_comparison <- function(x, ...) {
     } else {
         print(mat)
     }
+}
+
+
+#' Get top N candidates for a specific cluster
+#'
+#' @description Extract top N cell type candidates and their scores for a given cluster
+#'
+#' @param seurat_object Seurat object annotated with run_sctype_v2()
+#' @param cluster_id Cluster ID to query
+#' @param annotation_prefix Annotation prefix (default: "sctype_v2")
+#' @param cluster_col Cluster column name (default: "seurat_clusters")
+#'
+#' @return Data frame with top N candidates and scores
+#' @export
+#'
+#' @examples
+#' # Get top candidates for cluster 0
+#' candidates <- get_top_candidates(seurat_obj, cluster_id = 0)
+#' print(candidates)
+#'
+get_top_candidates <- function(seurat_object,
+                              cluster_id,
+                              annotation_prefix = "sctype_v2",
+                              cluster_col = "seurat_clusters") {
+
+    # Get one cell from this cluster to extract values
+    cluster_cells <- which(seurat_object@meta.data[[cluster_col]] == cluster_id)
+
+    if (length(cluster_cells) == 0) {
+        stop(sprintf("Cluster %s not found in column '%s'", cluster_id, cluster_col))
+    }
+
+    cell_data <- seurat_object@meta.data[cluster_cells[1], ]
+
+    # Find all top N columns
+    top_cols <- grep(paste0("^", annotation_prefix, "_top[0-9]+$"), colnames(cell_data), value = TRUE)
+    score_cols <- grep(paste0("^", annotation_prefix, "_score[0-9]+$"), colnames(cell_data), value = TRUE)
+
+    if (length(top_cols) == 0) {
+        stop(sprintf("No top N columns found with prefix '%s'. Did you run run_sctype_v2()?", annotation_prefix))
+    }
+
+    # Extract rankings
+    n_candidates <- length(top_cols)
+    result <- data.frame(
+        rank = 1:n_candidates,
+        cell_type = character(n_candidates),
+        score = numeric(n_candidates),
+        stringsAsFactors = FALSE
+    )
+
+    for (i in 1:n_candidates) {
+        result$cell_type[i] <- as.character(cell_data[[top_cols[i]]])
+        result$score[i] <- as.numeric(cell_data[[score_cols[i]]])
+    }
+
+    # Add metadata
+    result$cluster <- cluster_id
+    result$n_cells <- length(cluster_cells)
+    result$fdr <- as.numeric(cell_data[[paste0(annotation_prefix, "_fdr")]])
+    result$confidence <- as.character(cell_data[[paste0(annotation_prefix, "_confidence")]])
+
+    # Reorder columns
+    result <- result[, c("cluster", "rank", "cell_type", "score", "n_cells", "fdr", "confidence")]
+
+    # Filter out "None" entries
+    result <- result[result$cell_type != "None", ]
+
+    return(result)
+}
+
+
+#' Print summary of top candidates for all clusters
+#'
+#' @description Display top candidates for all clusters in a formatted table
+#'
+#' @param seurat_object Seurat object annotated with run_sctype_v2()
+#' @param annotation_prefix Annotation prefix (default: "sctype_v2")
+#' @param cluster_col Cluster column name (default: "seurat_clusters")
+#' @param top_n_display Number of candidates to display per cluster (default: 3)
+#'
+#' @return Invisibly returns data frame with all candidates
+#' @export
+#'
+#' @examples
+#' # Print summary for all clusters
+#' print_top_candidates_summary(seurat_obj)
+#'
+print_top_candidates_summary <- function(seurat_object,
+                                        annotation_prefix = "sctype_v2",
+                                        cluster_col = "seurat_clusters",
+                                        top_n_display = 3) {
+
+    all_clusters <- unique(seurat_object@meta.data[[cluster_col]])
+    all_results <- list()
+
+    cat("ScType v2 Top Candidates Summary\n")
+    cat("=================================\n\n")
+
+    for (cl in sort(all_clusters)) {
+        candidates <- get_top_candidates(seurat_object, cl, annotation_prefix, cluster_col)
+        all_results[[as.character(cl)]] <- candidates
+
+        # Display top N
+        display_candidates <- head(candidates, top_n_display)
+
+        cat(sprintf("Cluster %s (n=%d cells, FDR=%.4f, %s confidence):\n",
+                   cl, candidates$n_cells[1], candidates$fdr[1], candidates$confidence[1]))
+
+        for (i in 1:nrow(display_candidates)) {
+            cat(sprintf("  %d. %-30s (score: %.1f)\n",
+                       display_candidates$rank[i],
+                       display_candidates$cell_type[i],
+                       display_candidates$score[i]))
+        }
+        cat("\n")
+    }
+
+    invisible(do.call("rbind", all_results))
 }
