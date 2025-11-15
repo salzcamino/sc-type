@@ -31,7 +31,9 @@ sc-type/
 │   ├── sctype_wrapper.R         # Convenience wrapper for Seurat objects
 │   ├── sctype_wrapper_sce.R     # Convenience wrapper for SingleCellExperiment
 │   ├── sctype_hierarchical.R    # Hierarchical annotation (Seurat)
-│   └── sctype_hierarchical_sce.R # Hierarchical annotation (SingleCellExperiment)
+│   ├── sctype_hierarchical_sce.R # Hierarchical annotation (SingleCellExperiment)
+│   ├── sctype_visualize.R       # Marker visualization for Seurat
+│   └── sctype_visualize_sce.R   # Marker visualization for SingleCellExperiment
 ├── ScTypeDB_full.xlsx           # Complete cell marker database
 ├── ScTypeDB_short.xlsx          # Abbreviated marker database
 ├── ScTypeDB_enhanced.xlsx       # Enhanced marker database (122 cell types)
@@ -48,6 +50,9 @@ sc-type/
 ├── fonts/                       # Font files
 ├── fig*.png                     # Documentation figures
 ├── README.md                    # User documentation
+├── CLAUDE.md                    # AI assistant guide (this file)
+├── SINGLECELLEXPERIMENT_README.md # SCE-specific documentation
+├── VISUALIZATION_README.md      # Marker visualization guide
 └── LICENSE                      # GNU GPL v3.0 license
 ```
 
@@ -173,6 +178,121 @@ The hierarchical database (ScTypeDB_hierarchical.xlsx) includes an additional `b
 - `cellName`: Fine cell type name
 - `geneSymbolmore1`: Positive marker genes
 - `geneSymbolmore2`: Negative marker genes
+
+### 6. Marker Visualization (`R/sctype_visualize.R` and `R/sctype_visualize_sce.R`)
+
+**Purpose**: Comprehensive visualization of marker genes used for cell type annotation.
+
+After running ScType annotation, these functions generate multiple visualization types to validate and explore the marker genes (positive and negative) that determined each cell type assignment.
+
+**Main Functions**:
+- `visualize_sctype_markers()` (Seurat) / `visualize_sctype_markers_sce()` (SCE): Generate all visualization types
+- `quick_marker_viz()` (Seurat) / `quick_marker_viz_sce()` (SCE): Quick visualization for specific cell types
+
+**Function**: `visualize_sctype_markers(seurat_object, annotation_col, database_file, tissue_type, assay, top_n, plot_types, save_plots, output_dir)`
+
+**Parameters**:
+- `seurat_object` / `sce_object`: Annotated object with ScType results
+- `annotation_col`: Column with cell type annotations (default: "sctype_classification")
+- `database_file`: Path to marker database (default: GitHub URL)
+- `tissue_type`: Tissue type used for annotation (required)
+- `assay` / `assay_name`: Assay for expression data (default: "RNA" / "logcounts")
+- `top_n`: Number of top markers per cell type (default: 5)
+- `plot_types`: Vector of "violin", "umap", "dotplot", "heatmap" (default: all)
+- `save_plots`: Save to files (default: FALSE)
+- `output_dir`: Directory for saved plots (default: "sctype_plots")
+
+**Visualization Types**:
+
+1. **Violin Plots**
+   - Expression distribution of each marker across all cell types
+   - Separate plots for each annotated cell type
+   - Positive and negative markers labeled
+   - Confirms marker expression patterns
+
+2. **UMAP Plots**
+   - Spatial visualization of marker expression on UMAP
+   - Feature plots for each marker gene
+   - Reveals marker specificity and co-localization
+   - Requires UMAP coordinates in object
+
+3. **Dotplot**
+   - Combined view of all markers across all cell types
+   - Dot size = percentage of cells expressing
+   - Dot color = average expression level
+   - Best for overall comparison
+
+4. **Heatmap**
+   - Hierarchically clustered heatmap of average expression
+   - Rows = marker genes, Columns = cell types
+   - Scaled expression (blue-white-red)
+   - Reveals co-expression patterns and relationships
+
+**Usage Example** (Seurat):
+```r
+source("R/sctype_visualize.R")
+
+# Generate all visualizations
+plots <- visualize_sctype_markers(
+    seurat_object = seurat_obj,
+    annotation_col = "sctype_classification",
+    tissue_type = "Immune system",
+    top_n = 5,
+    save_plots = TRUE,
+    output_dir = "marker_plots"
+)
+
+# Access individual plots
+print(plots$dotplot)
+print(plots$heatmap)
+plots$violin[["CD4+ T cells"]]
+plots$umap[["B cells"]]
+
+# Quick visualization for one cell type
+quick_plots <- quick_marker_viz(
+    seurat_obj,
+    cell_type = "NK cells",
+    tissue_type = "Immune system",
+    plot_type = "both"
+)
+```
+
+**Usage Example** (SingleCellExperiment):
+```r
+source("R/sctype_visualize_sce.R")
+
+plots <- visualize_sctype_markers_sce(
+    sce_object = sce,
+    annotation_col = "sctype_classification",
+    tissue_type = "Brain",
+    assay_name = "logcounts",
+    top_n = 5,
+    save_plots = TRUE
+)
+```
+
+**Key Features**:
+- Validates annotation quality by showing marker expression
+- Identifies potential misannotations (unexpected patterns)
+- Publication-ready figures
+- Works with both hierarchical and standard annotations
+- Saves high-resolution plots (300 dpi)
+
+**Dependencies**:
+- Required: `ggplot2`, `dplyr`, `openxlsx`, `patchwork`
+- Optional: `ComplexHeatmap`, `circlize` (for heatmaps)
+- Seurat: `Seurat` package
+- SCE: `SingleCellExperiment`, `scater` packages
+
+**Output Files** (when `save_plots = TRUE`):
+- `violin_[CellType].png` - Violin plots for each cell type (12" × 8", 300 dpi)
+- `umap_[CellType].png` - UMAP plots for each cell type (14" × 10", 300 dpi)
+- `dotplot_all_markers.png` - Combined dotplot (16" × 10", 300 dpi)
+- `heatmap_all_markers.png` - Hierarchical heatmap (14" × 10", 300 dpi)
+
+**Returns**: List of ggplot objects (violin, umap, dotplot) and ComplexHeatmap object (heatmap)
+
+**See Also**: VISUALIZATION_README.md for detailed usage guide and examples
 
 ---
 
@@ -790,8 +910,9 @@ Based on existing code:
 ### Core Dependencies
 - **Required**: `dplyr`, `HGNChelper`, `openxlsx`
 - **For Seurat**: `Seurat`, `SeuratObject` (v4 or v5)
-- **For SingleCellExperiment**: `SingleCellExperiment`, `SummarizedExperiment`, `scater` (optional, for visualization)
-- **Optional**: `ggraph`, `igraph`, `tidyverse`, `data.tree` (for bubble plots), `patchwork` (for multi-panel plots)
+- **For SingleCellExperiment**: `SingleCellExperiment`, `SummarizedExperiment`, `scater` (for SCE operations and visualization)
+- **For Visualization**: `ggplot2`, `patchwork` (required); `ComplexHeatmap`, `circlize` (optional, for heatmaps)
+- **Other Optional**: `ggraph`, `igraph`, `tidyverse`, `data.tree` (for bubble plots and networks)
 
 ### Compatibility
 - **Seurat**: v4 and v5 fully supported
