@@ -35,7 +35,8 @@ sc-type/
 │   ├── sctype_visualize.R       # Marker visualization for Seurat
 │   ├── sctype_visualize_sce.R   # Marker visualization for SingleCellExperiment
 │   ├── sctype_uncertainty.R     # Uncertainty scoring for Seurat
-│   └── sctype_uncertainty_sce.R # Uncertainty scoring for SingleCellExperiment
+│   ├── sctype_uncertainty_sce.R # Uncertainty scoring for SingleCellExperiment
+│   └── sctype_pathway_enrichment.R # Pathway enrichment integration
 ├── ScTypeDB_full.xlsx           # Complete cell marker database
 ├── ScTypeDB_short.xlsx          # Abbreviated marker database
 ├── ScTypeDB_enhanced.xlsx       # Enhanced marker database (122 cell types)
@@ -56,6 +57,7 @@ sc-type/
 ├── SINGLECELLEXPERIMENT_README.md # SCE-specific documentation
 ├── VISUALIZATION_README.md      # Marker visualization guide
 ├── UNCERTAINTY_README.md        # Uncertainty scoring guide
+├── PATHWAY_ENRICHMENT_README.md # Pathway enrichment integration guide
 └── LICENSE                      # GNU GPL v3.0 license
 ```
 
@@ -433,6 +435,121 @@ metadata(sce)[["sctype_uncertainty_clusters"]]
 **Returns**: List of ggplot objects for all visualization types
 
 **See Also**: UNCERTAINTY_README.md for detailed usage guide and interpretation
+
+### 8. Pathway Enrichment Integration (`R/sctype_pathway_enrichment.R`)
+
+**Purpose**: Integrate pathway enrichment and gene ontology analyses to validate and weight ScType annotations.
+
+This advanced feature enhances ScType by running differential expression, performing pathway enrichment using multiple tools (EnrichR, fgsea, clusterProfiler/GO), and combining pathway support with ScType marker scores for improved confidence metrics.
+
+**Main Functions**:
+- `add_pathway_weighted_scores()`: Add pathway enrichment-weighted annotations
+- `visualize_pathway_support()`: Visualize pathway support for annotations
+
+**Function**: `add_pathway_weighted_scores(seurat_object, known_tissue_type, database_file, assay, cluster_col, enrichment_tools, top_n_genes, min_pct, logfc_threshold, annotation_prefix)`
+
+**Parameters**:
+- `seurat_object`: Seurat object with clustering
+- `known_tissue_type`: Tissue type (required)
+- `database_file`: Path to marker database (default: GitHub URL)
+- `assay`: Assay to use (default: "RNA")
+- `cluster_col`: Cluster column (default: "seurat_clusters")
+- `enrichment_tools`: Vector of "enrichr", "fgsea", "go" (default: all)
+- `top_n_genes`: Top DE genes for enrichment (default: 200)
+- `min_pct`: Min % cells expressing (default: 0.25)
+- `logfc_threshold`: LogFC threshold (default: 0.25)
+- `annotation_prefix`: Column prefix (default: "sctype")
+
+**Workflow**:
+
+1. **Run ScType Uncertainty**: First adds standard uncertainty scores (calls `add_sctype_uncertainty()`)
+2. **Differential Expression**: Identifies cluster markers using `FindAllMarkers()`
+3. **Pathway Enrichment**: Runs multiple enrichment tools on marker genes:
+   - **EnrichR**: Web-based enrichment against CellMarker, Azimuth, PanglaoDB, GO, KEGG, Reactome
+   - **fgsea**: Fast GSEA using MSigDB Hallmark and cell type signatures (C8)
+   - **clusterProfiler**: GO Biological Process and KEGG pathway enrichment
+4. **Pathway-to-Cell Type Matching**: Compares enriched pathways to expected cell type functions using knowledge base
+5. **Combined Scoring**: Calculates weighted confidence (60% ScType + 40% pathway)
+
+**New Metadata Columns Added**:
+- `sctype_pathway_score`: Pathway enrichment support (0-1)
+- `sctype_pathway_support`: Pathway support level (High/Medium/Low/None)
+- `sctype_combined_confidence`: Weighted average of ScType and pathway scores
+- `sctype_top_pathways`: Top enriched pathways for cluster
+
+**Pathway Support Scoring**:
+- Matches enriched pathways to expected cell type functions
+- Example: T cells should enrich for "T cell activation", "TCR signaling", "lymphocyte"
+- Score = (matching pathways) / (total pathways), normalized 0-1
+- **High** (≥0.7): Strong pathway support
+- **Medium** (0.4-0.7): Moderate support
+- **Low** (<0.4): Weak or no support
+
+**Usage Example**:
+```r
+source("R/sctype_pathway_enrichment.R")
+
+# Add pathway-weighted scores
+seurat_obj <- add_pathway_weighted_scores(
+    seurat_obj,
+    known_tissue_type = "Immune system",
+    enrichment_tools = c("enrichr", "fgsea", "go"),
+    top_n_genes = 200
+)
+
+# Visualize pathway support
+plots <- visualize_pathway_support(
+    seurat_obj,
+    save_plots = TRUE
+)
+
+print(plots$sctype_vs_pathway)  # Scatter plot comparing scores
+print(plots$combined_umap)       # UMAP by combined confidence
+print(plots$support_levels)      # Bar chart of support levels
+
+# Access enrichment results
+pathway_results <- attr(seurat_obj, "sctype_pathway_results")
+cluster_3_enrichment <- pathway_results[["3"]]
+```
+
+**Key Features**:
+- Validates marker-based annotations with functional evidence
+- Identifies annotations with weak pathway support (potential issues)
+- Detects missed annotations (high pathway score, low ScType)
+- Combines multiple enrichment tools for robust results
+- Knowledge base of cell type → pathway mappings
+- Publication-ready visualizations
+
+**Interpreting Combined Scores**:
+
+*High ScType + High Pathway*: Excellent annotation (both marker and function support)
+*High ScType + Low Pathway*: Review - markers present but unexpected pathways (may indicate doublets or low-quality cells)
+*Low ScType + High Pathway*: Missed annotation - pathway clearly indicates cell type but markers not in database
+*Low ScType + Low Pathway*: Unknown cell type, low quality, or novel population
+
+**Required Packages** (install at least one enrichment tool):
+- **EnrichR**: `install.packages("enrichR")` (web-based, easiest)
+- **fgsea**: `BiocManager::install(c("fgsea", "msigdbr"))` (offline, fast)
+- **GO/KEGG**: `BiocManager::install(c("clusterProfiler", "org.Hs.eg.db"))` (comprehensive)
+
+**Visualization Types**:
+1. **ScType vs Pathway Scatter**: Compares ScType confidence with pathway support scores
+2. **Combined Confidence UMAP**: Spatial distribution of weighted confidence
+3. **Pathway Support Levels**: Bar chart showing High/Medium/Low/None distribution
+
+**Output Files** (when `save_plots = TRUE`):
+- `sctype_vs_pathway.png` - Confidence comparison scatter plot (12" × 8", 300 dpi)
+- `combined_confidence_umap.png` - UMAP colored by combined score (10" × 8", 300 dpi)
+- `pathway_support_levels.png` - Support level distribution (10" × 6", 300 dpi)
+
+**Limitations**:
+- Requires differential expression (computationally intensive)
+- Pathway databases are primarily human/mouse
+- Knowledge base coverage varies by cell type
+- EnrichR requires internet connection
+- Enrichment quality depends on sequencing depth
+
+**See Also**: PATHWAY_ENRICHMENT_README.md for detailed usage, interpretation guide, and troubleshooting
 
 ---
 
