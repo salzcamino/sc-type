@@ -28,9 +28,12 @@ sc-type/
 │   ├── gene_sets_prepare.R      # Gene set preparation from marker database
 │   ├── sctype_score_.R          # ScType scoring algorithm
 │   ├── auto_detect_tissue_type.R # Tissue type auto-detection
-│   └── sctype_wrapper.R         # Convenience wrapper function
+│   ├── sctype_wrapper.R         # Convenience wrapper function
+│   └── sctype_hierarchical.R    # Hierarchical cell type annotation
 ├── ScTypeDB_full.xlsx           # Complete cell marker database
 ├── ScTypeDB_short.xlsx          # Abbreviated marker database
+├── ScTypeDB_enhanced.xlsx       # Enhanced marker database (122 cell types)
+├── ScTypeDB_hierarchical.xlsx   # Hierarchical marker database (broad + fine)
 ├── exampleData.RDS              # Example scRNA-seq dataset (PBMC 3k)
 ├── filtered_gene_bc_matrices/   # Example 10X Genomics data
 ├── livercellatlass/             # Web interface for liver cell atlas
@@ -127,6 +130,48 @@ sc-type/
 
 **Returns**: Modified Seurat object with new metadata column containing cell type annotations.
 
+### 5. Hierarchical Annotation (`R/sctype_hierarchical.R`)
+
+**Purpose**: Provides two-level hierarchical cell type annotation with both broad categories and fine-grained subtypes.
+
+**Main Function**: `run_sctype_hierarchical(seurat_object, known_tissue_type, assay, scaled, custom_marker_file, plot, broad_name, fine_name)`
+
+**Parameters**:
+- `seurat_object`: Seurat object (v4 or v5 compatible)
+- `known_tissue_type`: Tissue type (optional, auto-detected if NULL)
+- `assay`: Assay name (default: "RNA")
+- `scaled`: Use scaled data (default: TRUE)
+- `custom_marker_file`: Path to hierarchical marker database (default: ScTypeDB_hierarchical.xlsx)
+- `plot`: Generate side-by-side UMAP plots (default: FALSE)
+- `broad_name`: Metadata column name for broad categories (default: "sctype_broad")
+- `fine_name`: Metadata column name for fine subtypes (default: "sctype_fine")
+
+**Process**:
+1. **Step 1 - Broad Annotation**: Aggregates all markers within each broad category (e.g., "T cells", "B cells", "Neurons") and runs ScType scoring at the broad level
+2. **Step 2 - Fine Annotation**: Runs ScType scoring at the fine level using individual cell type markers (e.g., "CD4+ T cells", "CD8+ T cells")
+3. **Confidence-Based Assignment**: If fine-level confidence is low (score < ncells/4), falls back to broad category assignment
+4. **Dual Metadata Columns**: Adds both `sctype_broad` and `sctype_fine` columns to the Seurat object
+
+**Returns**: Modified Seurat object with two new metadata columns for hierarchical annotations.
+
+**Example Hierarchical Annotations**:
+- Broad: "T cells" → Fine: "CD4+ T cells"
+- Broad: "Neurons" → Fine: "Excitatory neurons"
+- Broad: "Endothelial" → Fine: "Arterial endothelial cells"
+- Broad: "Unknown" → Fine: "Unknown" (low confidence at both levels)
+
+**Helper Functions**:
+- `get_cluster_hierarchy(seurat_object, cluster_id, broad_name, fine_name)`: Query both annotations for a specific cluster
+- `print_hierarchy_table(seurat_object, broad_name, fine_name)`: Display formatted table of all hierarchical annotations
+
+**Database Structure**:
+The hierarchical database (ScTypeDB_hierarchical.xlsx) includes an additional `broadCategory` column:
+- `tissueType`: Tissue/organ classification
+- `broadCategory`: Broad cell type category (NEW)
+- `cellName`: Fine cell type name
+- `geneSymbolmore1`: Positive marker genes
+- `geneSymbolmore2`: Negative marker genes
+
 ---
 
 ## Supported Tissue Types
@@ -201,6 +246,61 @@ seurat_obj <- run_sctype(seurat_obj,
                          name = "sctype_classification",
                          plot = TRUE)
 ```
+
+### Hierarchical Annotation Workflow
+
+**Purpose**: Obtain both broad and fine-grained cell type annotations in separate metadata columns.
+
+```r
+# Load hierarchical annotation function
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_hierarchical.R")
+
+# Run hierarchical annotation
+seurat_obj <- run_sctype_hierarchical(
+    seurat_object = seurat_obj,
+    known_tissue_type = "Immune system",  # or NULL for auto-detection
+    custom_marker_file = "https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_hierarchical.xlsx",
+    assay = "RNA",
+    scaled = TRUE,
+    plot = TRUE,  # Shows side-by-side UMAP plots
+    broad_name = "sctype_broad",  # Column name for broad categories
+    fine_name = "sctype_fine"     # Column name for fine subtypes
+)
+
+# View results
+print(table(seurat_obj@meta.data$sctype_broad))   # Broad categories
+print(table(seurat_obj@meta.data$sctype_fine))    # Fine subtypes
+
+# Display hierarchical annotation table
+print_hierarchy_table(seurat_obj)
+
+# Query specific cluster
+cluster_info <- get_cluster_hierarchy(seurat_obj, cluster_id = 0)
+print(cluster_info)
+# Output: list(cluster = 0, broad_category = "T cells",
+#              fine_subtype = "CD4+ T cells", n_cells = 500, is_refined = TRUE)
+
+# Visualize both levels
+library(patchwork)
+p1 <- DimPlot(seurat_obj, group.by = "sctype_broad", label = TRUE, repel = TRUE) +
+      ggtitle("Broad Cell Categories")
+p2 <- DimPlot(seurat_obj, group.by = "sctype_fine", label = TRUE, repel = TRUE) +
+      ggtitle("Fine Cell Subtypes")
+p1 / p2
+```
+
+**Key Features**:
+- **Automatic fallback**: If fine-level annotation has low confidence, uses broad category instead
+- **Dual visualization**: See both annotation levels side-by-side
+- **Flexible naming**: Customize metadata column names
+- **Query functions**: Easily retrieve annotations for specific clusters
+- **Comprehensive table**: View all cluster assignments in formatted table
+
+**Use Cases**:
+1. **Initial exploration**: Use broad categories to understand major cell populations
+2. **Detailed analysis**: Examine fine subtypes for specific cell lineages of interest
+3. **Quality control**: Identify clusters with confident fine annotations (where broad ≠ fine)
+4. **Publication**: Report both levels to provide context and specificity
 
 ---
 
