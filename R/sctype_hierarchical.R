@@ -203,7 +203,9 @@ run_sctype_hierarchical <- function(seurat_object,
     #========================================================================#
 
     if(plot){
-        library(patchwork)
+        if (!requireNamespace("patchwork", quietly = TRUE)) {
+            stop("Package 'patchwork' is required for plotting. Install with: install.packages('patchwork')")
+        }
         p1 = DimPlot(seurat_object_res, reduction = "umap", group.by = broad_name, label = TRUE, repel = TRUE) +
             ggtitle("Broad Cell Categories")
         p2 = DimPlot(seurat_object_res, reduction = "umap", group.by = fine_name, label = TRUE, repel = TRUE) +
