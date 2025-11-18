@@ -10,6 +10,26 @@
 # Complexity: EASY-MEDIUM
 # Timeline: 2-3 days
 
+#' Helper function to rescale values with or without scales package
+#' @keywords internal
+.rescale_values <- function(x, to = c(0, 1), from = range(x, na.rm = TRUE, finite = TRUE)) {
+  if (requireNamespace("scales", quietly = TRUE)) {
+    return(scales::rescale(x, to = to, from = from))
+  } else {
+    # Manual rescaling
+    zero_range <- function(x, tol = .Machine$double.eps ^ 0.5) {
+      if (length(x) == 1) return(TRUE)
+      if (length(x) != 2) x <- range(x, na.rm = TRUE, finite = TRUE)
+      abs(diff(x)) < tol
+    }
+
+    if (zero_range(from)) {
+      return(rep(mean(to), length(x)))
+    }
+    (x - from[1]) / diff(from) * diff(to) + to[1]
+  }
+}
+
 #' Calculate TF-IDF weights for marker genes
 #'
 #' Computes Term Frequency-Inverse Document Frequency weights for marker genes,
@@ -165,7 +185,7 @@ calculate_tfidf_weights <- function(gene_sets,
       tfidf_rescaled <- rep(1, length(tfidf_scores))
       warning("All TF-IDF scores are identical. Setting all weights to 1.0")
     } else {
-      tfidf_rescaled <- scales::rescale(tfidf_scores, to = c(0, 1))
+      tfidf_rescaled <- .rescale_values(tfidf_scores, to = c(0, 1))
     }
   } else {
     tfidf_rescaled <- tfidf_scores
@@ -229,7 +249,7 @@ calculate_hybrid_weights <- function(gene_sets,
   n_celltypes <- length(gene_sets)
 
   # Rescale inversely: rare markers get high weights
-  freq_weights <- scales::rescale(as.numeric(marker_stat),
+  freq_weights <- .rescale_values(as.numeric(marker_stat),
                                   from = c(n_celltypes, 1),
                                   to = c(0, 1))
   names(freq_weights) <- names(marker_stat)
@@ -255,7 +275,7 @@ calculate_hybrid_weights <- function(gene_sets,
   )
 
   # Rescale combined weights to [0, 1]
-  combined_weights <- scales::rescale(combined_weights, to = c(0, 1))
+  combined_weights <- .rescale_values(combined_weights, to = c(0, 1))
 
   # Return as data frame
   result <- data.frame(
@@ -289,7 +309,7 @@ calculate_frequency_weights <- function(gene_sets) {
   n_celltypes <- length(gene_sets)
 
   # Rescale inversely: rare markers (appearing in few cell types) get higher weights
-  weights <- scales::rescale(as.numeric(marker_stat),
+  weights <- .rescale_values(as.numeric(marker_stat),
                              from = c(n_celltypes, 1),
                              to = c(0, 1))
 
