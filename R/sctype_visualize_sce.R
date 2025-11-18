@@ -38,21 +38,22 @@ visualize_sctype_markers_sce <- function(sce_object,
                                          save_plots = FALSE,
                                          output_dir = "sctype_plots") {
 
-  # Load required packages
-  required_packages <- c("SingleCellExperiment", "ggplot2", "dplyr", "openxlsx",
-                        "ComplexHeatmap", "circlize", "patchwork", "scater")
-  for (pkg in required_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      warning(paste0("Package '", pkg, "' not installed. Some plots may not be generated."))
-    }
+  # Check required packages
+  if (!requireNamespace("SingleCellExperiment", quietly = TRUE)) {
+    stop("Package 'SingleCellExperiment' required. Install with: BiocManager::install('SingleCellExperiment')")
+  }
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
+  if (!requireNamespace("openxlsx", quietly = TRUE)) {
+    stop("Package 'openxlsx' required. Install with: install.packages('openxlsx')")
   }
 
-  library(ggplot2)
-  library(dplyr)
-  library(SingleCellExperiment)
-
   # Check if annotation column exists
-  if (!annotation_col %in% colnames(colData(sce_object))) {
+  if (!annotation_col %in% colnames(SingleCellExperiment::colData(sce_object))) {
     stop(paste0("Annotation column '", annotation_col, "' not found in colData."))
   }
 
@@ -76,7 +77,7 @@ visualize_sctype_markers_sce <- function(sce_object,
   }
 
   # Get unique cell types from annotations (excluding "Unknown")
-  annotated_types <- unique(colData(sce_object)[[annotation_col]])
+  annotated_types <- unique(SingleCellExperiment::colData(sce_object)[[annotation_col]])
   annotated_types <- annotated_types[annotated_types != "Unknown"]
 
   if (length(annotated_types) == 0) {
@@ -211,7 +212,6 @@ generate_violin_plots_sce <- function(sce_object, markers_list, annotation_col, 
     return(list())
   }
 
-  library(scater)
   violin_plots <- list()
 
   for (cell_type in names(markers_list)) {
@@ -232,14 +232,14 @@ generate_violin_plots_sce <- function(sce_object, markers_list, annotation_col, 
       marker_type <- marker_types[i]
 
       if (gene %in% rownames(sce_object)) {
-        p <- plotExpression(sce_object, features = gene,
+        p <- scater::plotExpression(sce_object, features = gene,
                            x = annotation_col,
                            exprs_values = assay_name,
                            colour_by = annotation_col) +
-          ggtitle(paste0(gene, " (", marker_type, ")")) +
-          theme(legend.position = "none",
-                axis.text.x = element_text(angle = 45, hjust = 1)) +
-          ylab("Expression")
+          ggplot2::ggtitle(paste0(gene, " (", marker_type, ")")) +
+          ggplot2::theme(legend.position = "none",
+                axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
+          ggplot2::ylab("Expression")
         plots[[gene]] <- p
       }
     }
@@ -268,11 +268,10 @@ generate_umap_plots_sce <- function(sce_object, markers_list, annotation_col, as
     return(list())
   }
 
-  library(scater)
   umap_plots <- list()
 
   # Check if UMAP exists
-  if (!"UMAP" %in% reducedDimNames(sce_object)) {
+  if (!"UMAP" %in% SingleCellExperiment::reducedDimNames(sce_object)) {
     warning("UMAP not found in reducedDims. Skipping UMAP plots. Run runUMAP() first.")
     return(list())
   }
@@ -295,10 +294,10 @@ generate_umap_plots_sce <- function(sce_object, markers_list, annotation_col, as
       marker_type <- marker_types[i]
 
       if (gene %in% rownames(sce_object)) {
-        p <- plotReducedDim(sce_object, dimred = "UMAP",
+        p <- scater::plotReducedDim(sce_object, dimred = "UMAP",
                            colour_by = gene,
                            by_exprs_values = assay_name) +
-          ggtitle(paste0(gene, " (", marker_type, ")"))
+          ggplot2::ggtitle(paste0(gene, " (", marker_type, ")"))
         plots[[gene]] <- p
       }
     }
@@ -327,8 +326,6 @@ generate_dotplot_sce <- function(sce_object, markers_list, annotation_col, assay
     return(NULL)
   }
 
-  library(scater)
-
   # Collect all unique markers
   all_markers <- unique(unlist(lapply(markers_list, function(x) c(x$positive, x$negative))))
   all_markers <- all_markers[all_markers %in% rownames(sce_object)]
@@ -339,12 +336,12 @@ generate_dotplot_sce <- function(sce_object, markers_list, annotation_col, assay
   }
 
   # Create dotplot
-  p <- plotDots(sce_object, features = all_markers,
+  p <- scater::plotDots(sce_object, features = all_markers,
                 group = annotation_col,
                 exprs_values = assay_name) +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-    ggtitle("Marker Gene Expression Across Cell Types") +
-    xlab("Genes") + ylab("Cell Types")
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+    ggplot2::ggtitle("Marker Gene Expression Across Cell Types") +
+    ggplot2::xlab("Genes") + ggplot2::ylab("Cell Types")
 
   return(p)
 }
@@ -357,9 +354,10 @@ generate_heatmap_sce <- function(sce_object, markers_list, annotation_col, assay
     warning("ComplexHeatmap package not installed. Skipping heatmap. Install with: BiocManager::install('ComplexHeatmap')")
     return(NULL)
   }
-
-  library(ComplexHeatmap)
-  library(circlize)
+  if (!requireNamespace("circlize", quietly = TRUE)) {
+    warning("circlize package not installed. Install with: install.packages('circlize')")
+    return(NULL)
+  }
 
   # Collect all markers
   all_markers <- unique(unlist(lapply(markers_list, function(x) c(x$positive, x$negative))))
@@ -374,7 +372,7 @@ generate_heatmap_sce <- function(sce_object, markers_list, annotation_col, assay
   expr_data <- as.matrix(SummarizedExperiment::assay(sce_object, assay_name)[all_markers, , drop = FALSE])
 
   # Average expression by cell type
-  cell_types <- colData(sce_object)[[annotation_col]]
+  cell_types <- SingleCellExperiment::colData(sce_object)[[annotation_col]]
   unique_types <- unique(cell_types[cell_types != "Unknown"])
 
   avg_expr <- matrix(0, nrow = length(all_markers), ncol = length(unique_types))
@@ -409,17 +407,17 @@ generate_heatmap_sce <- function(sce_object, markers_list, annotation_col, assay
   }
 
   # Create heatmap
-  col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+  col_fun <- circlize::colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
 
-  ht <- Heatmap(avg_expr_scaled,
+  ht <- ComplexHeatmap::Heatmap(avg_expr_scaled,
                 name = "Scaled\nExpression",
                 col = col_fun,
                 cluster_rows = TRUE,
                 cluster_columns = TRUE,
                 show_row_names = TRUE,
                 show_column_names = TRUE,
-                row_names_gp = gpar(fontsize = 8),
-                column_names_gp = gpar(fontsize = 10),
+                row_names_gp = grid::gpar(fontsize = 8),
+                column_names_gp = grid::gpar(fontsize = 10),
                 heatmap_legend_param = list(title = "Scaled\nExpression"))
 
   return(ht)

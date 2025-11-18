@@ -238,9 +238,6 @@ run_sctype_hierarchical_sce <- function(sce_object,
           !requireNamespace("patchwork", quietly = TRUE)) {
         warning("ggplot2 and patchwork packages required for plotting. Skipping plot.")
       } else {
-        library(ggplot2)
-        library(patchwork)
-
         # Get UMAP coordinates
         umap_coords <- SingleCellExperiment::reducedDim(sce_object, "UMAP")
         plot_df <- data.frame(
@@ -250,17 +247,17 @@ run_sctype_hierarchical_sce <- function(sce_object,
           fine = SingleCellExperiment::colData(sce_object)[[fine_name]]
         )
 
-        p1 <- ggplot(plot_df, aes(x = UMAP1, y = UMAP2, color = broad)) +
-          geom_point(size = 0.5) +
-          theme_minimal() +
-          ggtitle("Broad Cell Categories") +
-          theme(legend.position = "right")
+        p1 <- ggplot2::ggplot(plot_df, ggplot2::aes(x = UMAP1, y = UMAP2, color = broad)) +
+          ggplot2::geom_point(size = 0.5) +
+          ggplot2::theme_minimal() +
+          ggplot2::ggtitle("Broad Cell Categories") +
+          ggplot2::theme(legend.position = "right")
 
-        p2 <- ggplot(plot_df, aes(x = UMAP1, y = UMAP2, color = fine)) +
-          geom_point(size = 0.5) +
-          theme_minimal() +
-          ggtitle("Fine Cell Subtypes") +
-          theme(legend.position = "right")
+        p2 <- ggplot2::ggplot(plot_df, ggplot2::aes(x = UMAP1, y = UMAP2, color = fine)) +
+          ggplot2::geom_point(size = 0.5) +
+          ggplot2::theme_minimal() +
+          ggplot2::ggtitle("Fine Cell Subtypes") +
+          ggplot2::theme(legend.position = "right")
 
         print(p1 / p2)
       }

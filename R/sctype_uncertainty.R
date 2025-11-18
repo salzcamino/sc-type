@@ -253,8 +253,12 @@ visualize_sctype_uncertainty <- function(seurat_object,
                                         save_plots = FALSE,
                                         output_dir = "uncertainty_plots") {
 
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required for visualization. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
 
   # Check if uncertainty columns exist
   required_cols <- c(paste0(annotation_prefix, "_top1"),
@@ -343,8 +347,12 @@ visualize_sctype_uncertainty <- function(seurat_object,
 #' Plot top candidate cell types with scores
 #' @keywords internal
 plot_top_candidates <- function(cluster_results, annotation_prefix) {
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required for visualization. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
 
   # Prepare data for plotting
   plot_data <- list()
@@ -410,8 +418,12 @@ plot_top_candidates <- function(cluster_results, annotation_prefix) {
 #' Plot UMAP colored by confidence
 #' @keywords internal
 plot_umap_confidence <- function(seurat_object, annotation_prefix) {
-  library(ggplot2)
-  library(Seurat)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required for visualization. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("Seurat", quietly = TRUE)) {
+    stop("Package 'Seurat' required. Install with: install.packages('Seurat')")
+  }
 
   plots <- list()
 
@@ -445,8 +457,12 @@ plot_umap_confidence <- function(seurat_object, annotation_prefix) {
 #' @keywords internal
 plot_confidence_distribution <- function(seurat_object, cluster_results,
                                         annotation_prefix, cluster_col) {
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required for visualization. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
 
   plots <- list()
 
@@ -486,9 +502,15 @@ plot_confidence_distribution <- function(seurat_object, cluster_results,
 #' Plot uncertainty heatmap
 #' @keywords internal
 plot_uncertainty_heatmap <- function(cluster_results) {
-  library(ggplot2)
-  library(dplyr)
-  library(tidyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required for visualization. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
+  if (!requireNamespace("tidyr", quietly = TRUE)) {
+    stop("Package 'tidyr' required. Install with: install.packages('tidyr')")
+  }
 
   # Prepare data
   heatmap_data <- cluster_results %>%

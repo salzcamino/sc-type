@@ -1,51 +1,23 @@
 # Refactoring TODO: Library Calls
 
-## Status: Partial Completion
+## Status: ✅ COMPLETE
 
-### Fixed (2/7 files)
+### Fixed (9/9 files)
 - ✅ `R/sctype_hierarchical.R` - Fixed patchwork library() call
 - ✅ `R/sctype_doublet_detection.R` - Fixed scDblFinder and SingleCellExperiment library() calls
+- ✅ `R/sctype_visualize.R` - Fixed ggplot2, dplyr, ComplexHeatmap, circlize library() calls
+- ✅ `R/sctype_uncertainty.R` - Fixed ggplot2, dplyr, Seurat, tidyr library() calls
+- ✅ `R/sctype_pathway_enrichment.R` - Fixed Seurat, dplyr, enrichR, fgsea, msigdbr, clusterProfiler, org.Hs.eg.db, ggplot2 library() calls
+- ✅ `R/sctype_visualize_sce.R` - Fixed ggplot2, dplyr, SingleCellExperiment, scater, ComplexHeatmap, circlize library() calls
+- ✅ `R/sctype_uncertainty_sce.R` - Fixed ggplot2, dplyr, SingleCellExperiment, scater library() calls
+- ✅ `R/sctype_hierarchical_sce.R` - Fixed ggplot2, patchwork library() calls
+- ✅ `R/sctype_wrapper_sce.R` - Fixed ggplot2 library() call
 
-### Remaining (5/7 files with 40+ library() calls)
+### Summary
 
-These files still use `library()` inside functions, which is not best practice for R packages:
+All library() calls inside functions have been refactored to use requireNamespace() checks with :: notation. This refactoring brings the package into compliance with R package best practices and CRAN guidelines.
 
-1. **R/sctype_visualize.R** (4 calls)
-   - Lines 49-50: ggplot2, dplyr
-   - Lines 345-346: ComplexHeatmap, circlize
-
-2. **R/sctype_uncertainty.R** (11 calls)
-   - Lines 256-257: ggplot2, dplyr
-   - Lines 346-347: ggplot2, dplyr
-   - Lines 413-414: ggplot2, Seurat
-   - Lines 448-449: ggplot2, dplyr
-   - Lines 489-491: ggplot2, dplyr, tidyr
-
-3. **R/sctype_pathway_enrichment.R** (9 calls)
-   - Lines 55-56: Seurat, dplyr
-   - Line 205: enrichR
-   - Lines 258-259: fgsea, msigdbr
-   - Lines 302-303: clusterProfiler, org.Hs.eg.db
-   - Lines 591-592: ggplot2, dplyr
-
-4. **R/sctype_visualize_sce.R** (8 calls)
-   - Lines 50-52: ggplot2, dplyr, SingleCellExperiment
-   - Lines 214, 271, 330: scater
-   - Lines 361-362: ComplexHeatmap, circlize
-
-5. **R/sctype_uncertainty_sce.R** (10 calls)
-   - Lines 254-256: ggplot2, dplyr, SingleCellExperiment
-   - Lines 345-346: ggplot2, dplyr
-   - Lines 412-413: ggplot2, SingleCellExperiment
-   - Line 428: scater
-   - Lines 454-456: ggplot2, dplyr, SingleCellExperiment
-   - Lines 496-497: ggplot2, dplyr
-
-6. **R/sctype_hierarchical_sce.R** (2 calls)
-   - Lines 241-242: ggplot2, patchwork
-
-7. **R/sctype_wrapper_sce.R** (1 call)
-   - Line 149: ggplot2
+**Total refactored:** ~45 library() calls across 7 files (in addition to the 2 files previously completed)
 
 ## Recommended Refactoring Pattern
 

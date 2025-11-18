@@ -146,8 +146,6 @@ run_sctype_sce <- function(sce_object,
       if (!requireNamespace("ggplot2", quietly = TRUE)) {
         warning("ggplot2 package required for plotting. Skipping plot.")
       } else {
-        library(ggplot2)
-
         # Get UMAP coordinates
         umap_coords <- SingleCellExperiment::reducedDim(sce_object, "UMAP")
         plot_df <- data.frame(
@@ -156,11 +154,11 @@ run_sctype_sce <- function(sce_object,
           CellType = SingleCellExperiment::colData(sce_object)[[name]]
         )
 
-        p <- ggplot(plot_df, aes(x = UMAP1, y = UMAP2, color = CellType)) +
-          geom_point(size = 0.5) +
-          theme_minimal() +
-          ggtitle("ScType Cell Type Annotations") +
-          theme(legend.position = "right")
+        p <- ggplot2::ggplot(plot_df, ggplot2::aes(x = UMAP1, y = UMAP2, color = CellType)) +
+          ggplot2::geom_point(size = 0.5) +
+          ggplot2::theme_minimal() +
+          ggplot2::ggtitle("ScType Cell Type Annotations") +
+          ggplot2::theme(legend.position = "right")
 
         print(p)
       }

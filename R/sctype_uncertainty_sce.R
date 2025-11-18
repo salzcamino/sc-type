@@ -251,22 +251,28 @@ visualize_sctype_uncertainty_sce <- function(sce_object,
                                             save_plots = FALSE,
                                             output_dir = "uncertainty_plots") {
 
-  library(ggplot2)
-  library(dplyr)
-  library(SingleCellExperiment)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
+  if (!requireNamespace("SingleCellExperiment", quietly = TRUE)) {
+    stop("Package 'SingleCellExperiment' required. Install with: BiocManager::install('SingleCellExperiment')")
+  }
 
   # Check if uncertainty columns exist
   required_cols <- c(paste0(annotation_prefix, "_top1"),
                     paste0(annotation_prefix, "_confidence"))
-  if (!all(required_cols %in% colnames(colData(sce_object)))) {
+  if (!all(required_cols %in% colnames(SingleCellExperiment::colData(sce_object)))) {
     stop("Uncertainty scores not found. Run add_sctype_uncertainty_sce() first.")
   }
 
   # Get cluster-level results
-  if (is.null(metadata(sce_object)[["sctype_uncertainty_clusters"]])) {
+  if (is.null(S4Vectors::metadata(sce_object)[["sctype_uncertainty_clusters"]])) {
     stop("Cluster-level uncertainty data not found. Run add_sctype_uncertainty_sce() first.")
   }
-  cluster_results <- metadata(sce_object)[["sctype_uncertainty_clusters"]]
+  cluster_results <- S4Vectors::metadata(sce_object)[["sctype_uncertainty_clusters"]]
 
   # Create output directory
   if (save_plots && !dir.exists(output_dir)) {
@@ -342,8 +348,9 @@ visualize_sctype_uncertainty_sce <- function(sce_object,
 #' Plot top candidate cell types with scores (SCE)
 #' @keywords internal
 plot_top_candidates_sce <- function(cluster_results, annotation_prefix) {
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
 
   # Prepare data for plotting
   plot_data <- list()
@@ -389,18 +396,18 @@ plot_top_candidates_sce <- function(cluster_results, annotation_prefix) {
   plot_df$rank <- factor(plot_df$rank, levels = c("1st", "2nd", "3rd"))
 
   # Create plot
-  p <- ggplot(plot_df, aes(x = factor(cluster), y = score, fill = rank)) +
-    geom_bar(stat = "identity", position = "dodge", color = "black", size = 0.3) +
-    geom_text(aes(label = celltype), position = position_dodge(width = 0.9),
+  p <- ggplot2::ggplot(plot_df, ggplot2::aes(x = factor(cluster), y = score, fill = rank)) +
+    ggplot2::geom_bar(stat = "identity", position = "dodge", color = "black", size = 0.3) +
+    ggplot2::geom_text(ggplot2::aes(label = celltype), position = ggplot2::position_dodge(width = 0.9),
               angle = 45, hjust = -0.1, vjust = 0.5, size = 3) +
-    scale_fill_manual(values = c("1st" = "#E41A1C", "2nd" = "#377EB8", "3rd" = "#4DAF4A")) +
-    labs(title = "Top Cell Type Candidates per Cluster",
+    ggplot2::scale_fill_manual(values = c("1st" = "#E41A1C", "2nd" = "#377EB8", "3rd" = "#4DAF4A")) +
+    ggplot2::labs(title = "Top Cell Type Candidates per Cluster",
          subtitle = "Showing top 3 candidates with ScType scores",
          x = "Cluster", y = "ScType Score", fill = "Rank") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 0, hjust = 0.5),
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5),
           legend.position = "right",
-          plot.title = element_text(face = "bold", size = 14))
+          plot.title = ggplot2::element_text(face = "bold", size = 14))
 
   return(p)
 }
@@ -409,13 +416,17 @@ plot_top_candidates_sce <- function(cluster_results, annotation_prefix) {
 #' Plot UMAP colored by confidence (SCE)
 #' @keywords internal
 plot_umap_confidence_sce <- function(sce_object, annotation_prefix) {
-  library(ggplot2)
-  library(SingleCellExperiment)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("SingleCellExperiment", quietly = TRUE)) {
+    stop("Package 'SingleCellExperiment' required. Install with: BiocManager::install('SingleCellExperiment')")
+  }
 
   plots <- list()
 
   # Check if UMAP exists
-  if (!"UMAP" %in% reducedDimNames(sce_object)) {
+  if (!"UMAP" %in% SingleCellExperiment::reducedDimNames(sce_object)) {
     warning("UMAP not found in reducedDims. Skipping UMAP plots.")
     return(plots)
   }
@@ -425,21 +436,19 @@ plot_umap_confidence_sce <- function(sce_object, annotation_prefix) {
     return(plots)
   }
 
-  library(scater)
-
   # Plot 1: Confidence score
-  p1 <- plotReducedDim(sce_object, dimred = "UMAP",
+  p1 <- scater::plotReducedDim(sce_object, dimred = "UMAP",
                       colour_by = paste0(annotation_prefix, "_confidence"),
                       by_exprs_values = NULL) +
-    scale_color_gradient2(low = "blue", mid = "yellow", high = "red",
+    ggplot2::scale_color_gradient2(low = "blue", mid = "yellow", high = "red",
                          midpoint = 0.5) +
-    ggtitle("Annotation Confidence Score")
+    ggplot2::ggtitle("Annotation Confidence Score")
 
   # Plot 2: Confidence level
-  p2 <- plotReducedDim(sce_object, dimred = "UMAP",
+  p2 <- scater::plotReducedDim(sce_object, dimred = "UMAP",
                       colour_by = paste0(annotation_prefix, "_confidence_level"),
                       by_exprs_values = NULL) +
-    ggtitle("Annotation Confidence Level")
+    ggplot2::ggtitle("Annotation Confidence Level")
 
   plots <- list(score = p1, level = p2)
 
@@ -451,38 +460,41 @@ plot_umap_confidence_sce <- function(sce_object, annotation_prefix) {
 #' @keywords internal
 plot_confidence_distribution_sce <- function(sce_object, cluster_results,
                                             annotation_prefix, cluster_col) {
-  library(ggplot2)
-  library(dplyr)
-  library(SingleCellExperiment)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("SingleCellExperiment", quietly = TRUE)) {
+    stop("Package 'SingleCellExperiment' required. Install with: BiocManager::install('SingleCellExperiment')")
+  }
 
   plots <- list()
 
   # Plot 1: Confidence level counts
   conf_data <- data.frame(
-    level = colData(sce_object)[[paste0(annotation_prefix, "_confidence_level")]]
+    level = SingleCellExperiment::colData(sce_object)[[paste0(annotation_prefix, "_confidence_level")]]
   )
   conf_data$level <- factor(conf_data$level, levels = c("High", "Medium", "Low", "Unknown"))
 
-  p1 <- ggplot(conf_data, aes(x = level, fill = level)) +
-    geom_bar() +
-    scale_fill_manual(values = c("High" = "#2ECC40", "Medium" = "#FFDC00",
+  p1 <- ggplot2::ggplot(conf_data, ggplot2::aes(x = level, fill = level)) +
+    ggplot2::geom_bar() +
+    ggplot2::scale_fill_manual(values = c("High" = "#2ECC40", "Medium" = "#FFDC00",
                                  "Low" = "#FF4136", "Unknown" = "#AAAAAA")) +
-    labs(title = "Distribution of Confidence Levels",
+    ggplot2::labs(title = "Distribution of Confidence Levels",
          x = "Confidence Level", y = "Number of Cells") +
-    theme_minimal() +
-    theme(legend.position = "none")
+    ggplot2::theme_minimal() +
+    ggplot2::theme(legend.position = "none")
 
   # Plot 2: Score difference distribution
-  p2 <- ggplot(cluster_results, aes(x = factor(cluster), y = score_diff,
+  p2 <- ggplot2::ggplot(cluster_results, ggplot2::aes(x = factor(cluster), y = score_diff,
                                    fill = confidence_level)) +
-    geom_bar(stat = "identity") +
-    scale_fill_manual(values = c("High" = "#2ECC40", "Medium" = "#FFDC00",
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::scale_fill_manual(values = c("High" = "#2ECC40", "Medium" = "#FFDC00",
                                  "Low" = "#FF4136", "Unknown" = "#AAAAAA")) +
-    labs(title = "Score Difference per Cluster (Top1 - Top2)",
+    ggplot2::labs(title = "Score Difference per Cluster (Top1 - Top2)",
          subtitle = "Larger difference = higher confidence",
          x = "Cluster", y = "Score Difference", fill = "Confidence") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
 
   plots <- list(levels = p1, score_diff = p2)
 
@@ -493,29 +505,33 @@ plot_confidence_distribution_sce <- function(sce_object, cluster_results,
 #' Plot uncertainty heatmap (SCE)
 #' @keywords internal
 plot_uncertainty_heatmap_sce <- function(cluster_results) {
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
 
   # Prepare data
   heatmap_data <- cluster_results %>%
-    select(cluster, top1, score1, confidence) %>%
-    mutate(cluster = factor(cluster))
+    dplyr::select(cluster, top1, score1, confidence) %>%
+    dplyr::mutate(cluster = factor(cluster))
 
   # Create plot
-  p <- ggplot(heatmap_data, aes(x = cluster, y = 1, fill = confidence)) +
-    geom_tile(color = "white", size = 1) +
-    geom_text(aes(label = top1), size = 3, fontface = "bold") +
-    geom_text(aes(label = sprintf("%.2f", score1)), size = 2.5,
+  p <- ggplot2::ggplot(heatmap_data, ggplot2::aes(x = cluster, y = 1, fill = confidence)) +
+    ggplot2::geom_tile(color = "white", size = 1) +
+    ggplot2::geom_text(ggplot2::aes(label = top1), size = 3, fontface = "bold") +
+    ggplot2::geom_text(ggplot2::aes(label = sprintf("%.2f", score1)), size = 2.5,
               vjust = 2.5, color = "gray30") +
-    scale_fill_gradient2(low = "red", mid = "yellow", high = "green",
+    ggplot2::scale_fill_gradient2(low = "red", mid = "yellow", high = "green",
                         midpoint = 0.5, limits = c(0, 1)) +
-    labs(title = "Cluster Annotation Confidence",
+    ggplot2::labs(title = "Cluster Annotation Confidence",
          subtitle = "Cell type (top) and score (bottom) shown in each tile",
          x = "Cluster", y = "", fill = "Confidence") +
-    theme_minimal() +
-    theme(axis.text.y = element_blank(),
-          axis.ticks.y = element_blank(),
-          panel.grid = element_blank())
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.y = ggplot2::element_blank(),
+          axis.ticks.y = ggplot2::element_blank(),
+          panel.grid = ggplot2::element_blank())
 
   return(p)
 }
