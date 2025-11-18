@@ -37,6 +37,9 @@ sc-type/
 │   ├── sctype_uncertainty.R     # Uncertainty scoring for Seurat
 │   ├── sctype_uncertainty_sce.R # Uncertainty scoring for SingleCellExperiment
 │   └── sctype_pathway_enrichment.R # Pathway enrichment integration
+├── python/                      # Python/scanpy integration
+│   ├── sctype_python.py         # Python wrapper using rpy2
+│   └── requirements.txt         # Python package dependencies
 ├── ScTypeDB_full.xlsx           # Complete cell marker database
 ├── ScTypeDB_short.xlsx          # Abbreviated marker database
 ├── ScTypeDB_enhanced.xlsx       # Enhanced marker database (122 cell types)
@@ -58,6 +61,7 @@ sc-type/
 ├── VISUALIZATION_README.md      # Marker visualization guide
 ├── UNCERTAINTY_README.md        # Uncertainty scoring guide
 ├── PATHWAY_ENRICHMENT_README.md # Pathway enrichment integration guide
+├── PYTHON_README.md             # Python/scanpy integration guide
 └── LICENSE                      # GNU GPL v3.0 license
 ```
 
@@ -551,6 +555,262 @@ cluster_3_enrichment <- pathway_results[["3"]]
 
 **See Also**: PATHWAY_ENRICHMENT_README.md for detailed usage, interpretation guide, and troubleshooting
 
+### 9. Python/Scanpy Integration (`python/sctype_python.py`)
+
+**Purpose**: Python wrapper for ScType enabling seamless integration with scanpy workflows and AnnData objects.
+
+This module provides a bridge between Python/scanpy and R-based ScType functions using `rpy2`, allowing users to run ScType cell type annotation directly on scanpy `AnnData` objects without leaving Python.
+
+**Main Classes and Functions**:
+- `ScType` class: Main interface with methods for annotation, hierarchical annotation, and uncertainty scoring
+- `run_sctype()`: Convenience function for quick annotation
+
+**Class**: `ScType(github_repo="https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master")`
+
+**Methods**:
+- `annotate(adata, tissue_type, ...)`: Basic cell type annotation
+- `annotate_hierarchical(adata, tissue_type, ...)`: Hierarchical annotation (broad + fine)
+- `add_uncertainty(adata, tissue_type, ...)`: Add uncertainty scores
+- `visualize_markers(adata, tissue_type, ...)`: Generate marker visualization plots
+
+**Function**: `run_sctype(adata, tissue_type, database_file, layer, scaled, cluster_key, annotation_key, plot)`
+
+**Parameters**:
+- `adata` (AnnData): Annotated data object with clustering (scanpy format)
+- `tissue_type` (str): Tissue type (e.g., "Immune system", "Brain", "Liver")
+- `database_file` (str, optional): Path or URL to custom marker database
+- `layer` (str, optional): Layer to use for expression data (None = .X)
+- `scaled` (bool): Whether data is scaled (default: True)
+- `cluster_key` (str): Key in adata.obs with cluster assignments (default: 'leiden')
+- `annotation_key` (str): Key to store annotations in adata.obs (default: 'sctype_classification')
+- `plot` (bool): Generate UMAP plot with annotations (default: False)
+
+**Returns**: Modified AnnData object with annotations in `.obs[annotation_key]`
+
+**Usage Example**:
+```python
+import scanpy as sc
+import sys
+sys.path.append('path/to/sc-type/python')
+from sctype_python import run_sctype
+
+# Load your data
+adata = sc.read_h5ad("pbmc3k.h5ad")
+
+# Standard scanpy preprocessing
+sc.pp.filter_cells(adata, min_genes=200)
+sc.pp.filter_genes(adata, min_cells=3)
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+adata.raw = adata
+adata = adata[:, adata.var.highly_variable]
+sc.pp.scale(adata, max_value=10)
+sc.tl.pca(adata, n_comps=50)
+sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40)
+sc.tl.leiden(adata, resolution=0.8)
+sc.tl.umap(adata)
+
+# Run ScType annotation
+adata = run_sctype(
+    adata,
+    tissue_type="Immune system",
+    scaled=True,
+    cluster_key='leiden',
+    annotation_key='sctype_classification',
+    plot=True
+)
+
+# View results
+print(adata.obs['sctype_classification'].value_counts())
+sc.pl.umap(adata, color=['leiden', 'sctype_classification'])
+```
+
+**Class Interface Example**:
+```python
+from sctype_python import ScType
+
+# Initialize ScType
+sctype = ScType()
+
+# Run annotation
+adata = sctype.annotate(
+    adata,
+    tissue_type="Brain",
+    cluster_key='louvain',
+    annotation_key='cell_type',
+    plot=True
+)
+
+# Run hierarchical annotation
+adata = sctype.annotate_hierarchical(
+    adata,
+    tissue_type="Immune system",
+    broad_key='sctype_broad',
+    fine_key='sctype_fine'
+)
+
+# Add uncertainty scores
+adata = sctype.add_uncertainty(
+    adata,
+    tissue_type="Immune system",
+    top_n=3
+)
+
+# Visualize marker genes
+plots = sctype.visualize_markers(
+    adata,
+    tissue_type="Immune system",
+    annotation_col='cell_type',
+    top_n=5,
+    plot_types=['violin', 'umap', 'dotplot', 'heatmap'],
+    save_plots=True
+)
+
+# Access results
+cell_types = adata.obs['cell_type']
+confidence = adata.obs['sctype_confidence']
+```
+
+**Key Features**:
+- **Native scanpy Integration**: Works directly with AnnData objects
+- **Automatic Conversion**: Seamlessly converts between Python and R data formats
+- **rpy2 Bridge**: Leverages R ScType functions without manual data export
+- **Full Functionality**: Supports basic annotation, hierarchical annotation, and uncertainty scoring
+- **Comprehensive Visualization**: Violin plots, UMAP feature plots, dotplots, and heatmaps of marker expression
+- **Publication-Ready Figures**: High-resolution plots (300 dpi) with customizable sizes
+
+**Data Conversion**:
+The wrapper automatically handles conversion between Python and R formats:
+- **AnnData → R matrix**: Extracts expression matrix (genes × cells)
+- **Sparse → Dense**: Converts sparse matrices to dense for R compatibility
+- **Python lists → R vectors**: Uses rpy2 converters (pandas2ri, numpy2ri)
+- **R results → Python**: Converts annotations back to pandas categorical
+
+**Implementation Details**:
+```python
+# Core conversion pattern
+def _adata_to_matrix(self, adata, layer=None):
+    # Extract expression data
+    if layer is None:
+        mat = adata.X
+    else:
+        mat = adata.layers[layer]
+
+    # Convert sparse to dense if needed
+    if scipy.sparse.issparse(mat):
+        mat = mat.toarray()
+
+    # Transpose to genes × cells (R format)
+    mat = mat.T
+
+    # Get gene and cell names
+    genes = adata.var_names.tolist()
+    cells = adata.obs_names.tolist()
+
+    return mat, genes, cells
+
+# Run R ScType scoring
+ro.r('es.max <- sctype_score(scRNAseqData, scaled, gs_list$gs_positive, gs_list$gs_negative)')
+
+# Convert results back to Python
+annotations = np.array([cluster_assignments.get(cl, "Unknown") for cl in clusters])
+adata.obs[annotation_key] = pd.Categorical(annotations)
+```
+
+**Prerequisites**:
+1. **R Installation**: R must be installed and accessible
+2. **R Packages**: `dplyr`, `HGNChelper`, `openxlsx`
+3. **Python Packages**: `numpy`, `pandas`, `scanpy`, `anndata`, `rpy2`, `matplotlib`, `openpyxl`
+4. **Optional**: `seaborn` (for enhanced visualization)
+
+**Installation**:
+```bash
+# Install Python dependencies
+cd sc-type/python
+pip install -r requirements.txt
+
+# Or install individually
+pip install numpy pandas scanpy anndata rpy2 matplotlib openpyxl seaborn
+```
+
+**Troubleshooting**:
+
+**Error: Cannot find R**
+```python
+# Set R_HOME environment variable before importing rpy2
+import os
+os.environ['R_HOME'] = '/usr/lib/R'  # Linux
+# os.environ['R_HOME'] = '/Library/Frameworks/R.framework/Resources'  # macOS
+```
+
+**Memory Issues**
+```python
+# Downsample or process in batches
+adata_subset = sc.pp.subsample(adata, fraction=0.1, copy=True)
+adata_subset = run_sctype(adata_subset, tissue_type="Immune system")
+
+# Or increase R memory limit
+import rpy2.robjects as ro
+ro.r('memory.limit(size=16000)')  # 16 GB
+```
+
+**All Cells Annotated as "Unknown"**
+- Check tissue type spelling (case-sensitive)
+- Verify data is scaled if `scaled=True`
+- Ensure cluster_key exists in adata.obs
+- Check that expression data format is correct (genes as rows after conversion)
+
+**Limitations**:
+1. **R Dependency**: Requires R installation and rpy2
+2. **Advanced Features**: Pathway enrichment integration not yet available in Python wrapper
+3. **Performance**: Slightly slower than native R due to conversion overhead
+4. **Hierarchical Annotation**: Currently falls back to standard annotation (R version has full support)
+
+**Comparison: Python vs R**:
+
+| Feature | Python (scanpy) | R (Seurat/SCE) |
+|---------|----------------|----------------|
+| **Basic annotation** | ✓ Supported | ✓ Supported |
+| **Hierarchical annotation** | ⚠ Fallback to standard | ✓ Full support |
+| **Uncertainty scoring** | ⚠ Fallback to standard | ✓ Full support |
+| **Marker visualization** | ✓ Supported (4 plot types) | ✓ Full support |
+| **Pathway enrichment** | ✗ Not yet implemented | ✓ Full support |
+| **Data object** | AnnData | Seurat/SCE |
+| **Plotting** | matplotlib/scanpy | ggplot2/Seurat |
+
+**Marker Visualization**:
+
+The Python wrapper includes comprehensive marker visualization capabilities:
+
+```python
+# After annotation
+plots = sctype.visualize_markers(
+    adata,
+    tissue_type="Immune system",
+    annotation_col="sctype_classification",
+    top_n=5,
+    plot_types=['violin', 'umap', 'dotplot', 'heatmap'],
+    save_plots=True,
+    output_dir="marker_plots"
+)
+
+# Access individual plots
+plots['dotplot'].show()
+plots['heatmap'].show()
+plots['violin']['CD4+ T cells'].show()
+```
+
+**Visualization Types**:
+1. **Violin Plots**: Expression distribution across cell types for each marker
+2. **UMAP Feature Plots**: Spatial marker expression patterns
+3. **Dotplot**: Combined view of all markers (uses scanpy.pl.dotplot)
+4. **Heatmap**: Mean expression heatmap across cell types
+
+**Output**: Dictionary with plot objects and optionally saved high-resolution PNG files (300 dpi)
+
+**See Also**: PYTHON_README.md for complete installation guide, detailed examples, and troubleshooting
+
 ---
 
 ## Supported Tissue Types
@@ -1009,16 +1269,46 @@ sce <- run_sctype_sce(sce, known_tissue_type = "Immune system",
 plotUMAP(sce, colour_by = "sctype_classification")
 ```
 
-### Other Single-Cell Tools (Scanpy, etc.)
+### Python/Scanpy Pipeline Integration
 
-ScType core functions can work with any tool that provides:
+ScType now provides native Python integration through the `python/sctype_python.py` wrapper, enabling seamless use with scanpy workflows:
+
+```python
+import scanpy as sc
+import sys
+sys.path.append('path/to/sc-type/python')
+from sctype_python import run_sctype
+
+# Standard scanpy workflow
+adata = sc.read_h5ad("data.h5ad")
+sc.pp.filter_cells(adata, min_genes=200)
+sc.pp.filter_genes(adata, min_cells=3)
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+sc.pp.scale(adata, max_value=10)
+sc.tl.pca(adata, n_comps=50)
+sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40)
+sc.tl.leiden(adata, resolution=0.8)
+sc.tl.umap(adata)
+
+# Insert ScType here
+adata = run_sctype(adata, tissue_type="Immune system", cluster_key='leiden', plot=True)
+
+# Continue with downstream analysis
+sc.pl.umap(adata, color='sctype_classification')
+```
+
+**Alternative: Manual R Integration**
+
+For other Python tools or custom workflows, ScType core functions can work with any tool that provides:
 1. Scaled expression matrix (genes × cells)
 2. Cluster assignments
 
-For Python/Scanpy users, extract the expression matrix and cluster assignments, then use `sctype_score()` directly in R:
+Extract the expression matrix and cluster assignments, then use `sctype_score()` directly in R:
 
 ```r
-# Example: Using ScType with Scanpy-processed data
+# Example: Using ScType with Python-processed data
 # (Assume data exported from Python as CSV files)
 expression_matrix <- read.csv("scaled_expression.csv", row.names = 1)
 clusters <- read.csv("clusters.csv")$cluster
@@ -1033,6 +1323,8 @@ es.max <- sctype_score(as.matrix(expression_matrix), scaled = TRUE,
 # Aggregate by cluster and assign cell types
 # (Same as standard workflow)
 ```
+
+**See Also**: PYTHON_README.md for complete Python/scanpy integration guide
 
 ---
 
@@ -1164,18 +1456,29 @@ Based on existing code:
 
 ## Version Information
 
-### Core Dependencies
+### Core R Dependencies
 - **Required**: `dplyr`, `HGNChelper`, `openxlsx`
 - **For Seurat**: `Seurat`, `SeuratObject` (v4 or v5)
 - **For SingleCellExperiment**: `SingleCellExperiment`, `SummarizedExperiment`, `scater` (for SCE operations and visualization)
 - **For Visualization**: `ggplot2`, `patchwork` (required); `ComplexHeatmap`, `circlize` (optional, for heatmaps)
+- **For Pathway Enrichment**: `enrichR` (optional), `fgsea`, `msigdbr` (optional), `clusterProfiler`, `org.Hs.eg.db` (optional)
 - **Other Optional**: `ggraph`, `igraph`, `tidyverse`, `data.tree` (for bubble plots and networks)
 
+### Python Dependencies
+- **Required**: `numpy`, `pandas`, `scanpy`, `anndata`, `rpy2`, `matplotlib`, `openpyxl`
+- **Optional**: `seaborn` (enhanced visualization), `scipy`, `scikit-learn`
+- **R Installation**: R ≥ 4.0.0 with core R packages (required for rpy2 bridge)
+
 ### Compatibility
+- **R Version**: R ≥ 4.0.0 (tested with R 4.1+)
+- **Python Version**: Python ≥ 3.7 (tested with Python 3.8+)
 - **Seurat**: v4 and v5 fully supported
 - **SingleCellExperiment**: Bioconductor 3.14+ (tested with 3.18)
-- **R Version**: R ≥ 4.0.0 (tested with R 4.1+)
-- **Tested Package Versions**: HGNChelper_0.8.1, SeuratObject_4.0.2, Seurat_4.0.3, dplyr_1.0.6, SingleCellExperiment_1.18+
+- **scanpy**: Version 1.8+ (tested with 1.9+)
+- **rpy2**: Version 3.4+ (tested with 3.5+)
+- **Tested Package Versions**:
+  - R: HGNChelper_0.8.1, SeuratObject_4.0.2, Seurat_4.0.3, dplyr_1.0.6, SingleCellExperiment_1.18+
+  - Python: scanpy_1.9.1, anndata_0.8.0, rpy2_3.5.1, numpy_1.21+, pandas_1.3+
 
 ---
 
