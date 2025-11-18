@@ -38,7 +38,7 @@ auto_detect_tissue_type <- function(path_to_db_file, seuratObject, scaled, assay
         
         cL_resutls = do.call("rbind", lapply(unique(seuratObject@meta.data$seurat_clusters), function(cl){
             
-            es.max.cl = sort(rowSums(es.max[ ,rownames(seuratObject@meta.data[seuratObject@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+            es.max.cl <- sort(rowSums(es.max[ ,rownames(seuratObject@meta.data[seuratObject@meta.data$seurat_clusters==cl, ])]), decreasing = TRUE)
             head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl), 10)
         }))
         

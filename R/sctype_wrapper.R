@@ -35,8 +35,10 @@ sctype_source <- function(){
 #' @import Seurat DimPlot
 #' 
 #' @examples
-#' seurat_object=run_scType(seurat_object,"Immune system)
-#' 
+#' \dontrun{
+#' seurat_object <- run_sctype(seurat_object, known_tissue_type = "Immune system")
+#' }
+#'
 #' @export
 #' 
 
@@ -97,7 +99,7 @@ run_sctype <- function(seurat_object, known_tissue_type = NULL, assay = "RNA", s
     
     # Extract top cell types for each cluster
     cL_resutls = do.call("rbind", lapply(unique(seurat_object@meta.data$seurat_clusters), function(cl){
-        es.max.cl = sort(rowSums(es.max[ ,rownames(seurat_object@meta.data[seurat_object@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+        es.max.cl <- sort(rowSums(es.max[ ,rownames(seurat_object@meta.data[seurat_object@meta.data$seurat_clusters==cl, ])]), decreasing = TRUE)
         head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(seurat_object@meta.data$seurat_clusters==cl)), 10)
     }))
     sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)  

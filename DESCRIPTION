@@ -1,0 +1,43 @@
+Package: ScType
+Type: Package
+Title: Fully-Automated and Ultra-Fast Cell-Type Identification
+Version: 2.0.0
+Date: 2025-11-18
+Authors@R: c(
+    person("Aleksandr", "Ianevski", email = "aleksandr.ianevski@helsinki.fi",
+           role = c("aut", "cre")),
+    person("Claude", "AI", role = "ctb", comment = "Package structure improvements")
+    )
+Description: ScType provides fully-automated and ultra-fast cell-type identification
+    using specific marker combinations from single-cell transcriptomic data (scRNA-seq).
+    The package supports both Seurat and SingleCellExperiment objects, offers hierarchical
+    annotation, uncertainty scoring, marker visualization, and pathway enrichment integration.
+License: GPL-3
+URL: https://github.com/IanevskiAleksandr/sc-type, http://sctype.app
+BugReports: https://github.com/IanevskiAleksandr/sc-type/issues
+Depends:
+    R (>= 4.0.0)
+Imports:
+    dplyr (>= 1.0.0),
+    openxlsx (>= 4.2.0),
+    HGNChelper (>= 0.8.0),
+    scales (>= 1.1.0)
+Suggests:
+    Seurat (>= 4.0.0),
+    SeuratObject (>= 4.0.0),
+    SingleCellExperiment (>= 1.14.0),
+    SummarizedExperiment (>= 1.22.0),
+    scater (>= 1.20.0),
+    ggplot2 (>= 3.3.0),
+    patchwork (>= 1.1.0),
+    ComplexHeatmap (>= 2.8.0),
+    circlize (>= 0.4.13),
+    enrichR (>= 3.0),
+    fgsea (>= 1.18.0),
+    msigdbr (>= 7.4.0),
+    clusterProfiler (>= 4.0.0),
+    org.Hs.eg.db (>= 3.13.0),
+    testthat (>= 3.0.0)
+LazyData: true
+Encoding: UTF-8
+RoxygenNote: 7.2.0

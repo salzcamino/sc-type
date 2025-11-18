@@ -9,21 +9,25 @@
 # @params: gs - list of gene sets positively expressed in the cell type 
 # @params: gs2 - list of gene sets that should not be expressed in the cell type (NULL if not applicable)
 
-sctype_score <- function(scRNAseqData, scaled = !0, gs, gs2 = NULL, gene_names_to_uppercase = !0, ...){
-  
+sctype_score <- function(scRNAseqData, scaled = TRUE, gs, gs2 = NULL, gene_names_to_uppercase = TRUE, ...){
+
   # check input matrix
   if(!is.matrix(scRNAseqData)){
-    warning("scRNAseqData doesn't seem to be a matrix")
-  } else {
-    if(sum(dim(scRNAseqData))==0){
-       warning("The dimension of input scRNAseqData matrix equals to 0, is it an empty matrix?")
-    }
+    stop("scRNAseqData must be a matrix. Provided object is of class: ", class(scRNAseqData)[1])
+  }
+
+  if(sum(dim(scRNAseqData))==0){
+    stop("Input scRNAseqData matrix has zero dimensions. Please provide a non-empty matrix.")
+  }
+
+  if(nrow(scRNAseqData) == 0 || ncol(scRNAseqData) == 0){
+    stop("Input scRNAseqData matrix must have both rows (genes) and columns (cells).")
   }
   
   # marker sensitivity
-  marker_stat = sort(table(unlist(gs)), decreasing = T); 
-  marker_sensitivity = data.frame(score_marker_sensitivity = scales::rescale(as.numeric(marker_stat), to = c(0,1), from = c(length(gs),1)),
-                                      gene_ = names(marker_stat), stringsAsFactors = !1)
+  marker_stat <- sort(table(unlist(gs)), decreasing = TRUE)
+  marker_sensitivity <- data.frame(score_marker_sensitivity = scales::rescale(as.numeric(marker_stat), to = c(0,1), from = c(length(gs),1)),
+                                      gene_ = names(marker_stat), stringsAsFactors = FALSE)
 
   # convert gene names to Uppercase
   if(gene_names_to_uppercase){
@@ -50,23 +54,34 @@ sctype_score <- function(scRNAseqData, scaled = !0, gs, gs2 = NULL, gene_names_t
   }
   
   # subselect only with marker genes
-  Z = Z[unique(c(unlist(gs),unlist(gs2))), ]
-  
+  marker_genes <- unique(c(unlist(gs), unlist(gs2)))
+
+  if(length(marker_genes) == 0){
+    stop("No marker genes found in the dataset. Check that gene names match between data and marker database.")
+  }
+
+  Z <- Z[marker_genes, , drop = FALSE]
+
   # combine scores
-  es = do.call("rbind", lapply(names(gs), function(gss_){
+  es <- do.call("rbind", lapply(names(gs), function(gss_){
     sapply(1:ncol(Z), function(j) {
-      gs_z = Z[gs[[gss_]], j];
-      sum_t1 = (sum(gs_z) / sqrt(length(gs_z)));
+      gs_z <- Z[gs[[gss_]], j, drop = FALSE]
+
+      if(length(gs_z) == 0){
+        sum_t1 <- 0
+      } else {
+        sum_t1 <- sum(gs_z) / sqrt(length(gs_z))
+      }
 
       # Handle negative markers
       if(!is.null(gs2) && length(gs2[[gss_]]) > 0){
-        gz_2 = Z[gs2[[gss_]], j] * -1
-        sum_t2 = sum(gz_2) / sqrt(length(gz_2));
+        gz_2 <- Z[gs2[[gss_]], j, drop = FALSE] * -1
+        sum_t2 <- sum(gz_2) / sqrt(length(gz_2))
         if(is.na(sum_t2)){
-          sum_t2 = 0;
+          sum_t2 <- 0
         }
       } else {
-        sum_t2 = 0;
+        sum_t2 <- 0
       }
 
       sum_t1 + sum_t2

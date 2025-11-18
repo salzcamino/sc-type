@@ -5,6 +5,7 @@ Creates database with both broad and fine cell type levels
 """
 
 import pandas as pd
+import argparse
 from pathlib import Path
 
 def create_hierarchical_database():
@@ -590,6 +591,13 @@ def create_hierarchical_database():
     return df
 
 def main():
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Create hierarchical ScType database')
+    parser.add_argument('-o', '--output',
+                        default='ScTypeDB_hierarchical.xlsx',
+                        help='Output filename (default: ScTypeDB_hierarchical.xlsx)')
+    args = parser.parse_args()
+
     print("Creating hierarchical ScType database...")
 
     # Create the database
@@ -599,11 +607,12 @@ def main():
     print(f"\nDatabase created with {len(hierarchical_db)} entries across {hierarchical_db['tissueType'].nunique()} tissue types")
     print(f"Broad categories: {hierarchical_db['broadCategory'].nunique()}")
 
-    # Save to Excel file
-    output_file = Path("/home/user/sc-type/ScTypeDB_hierarchical.xlsx")
+    # Save to Excel file - use relative path or absolute from script location
+    script_dir = Path(__file__).parent
+    output_file = script_dir / args.output
     hierarchical_db.to_excel(output_file, index=False, engine='openpyxl')
 
-    print(f"Database saved to: {output_file}")
+    print(f"Database saved to: {output_file.absolute()}")
 
     # Print summary by tissue
     print("\n=== Database Summary ===")

@@ -1,0 +1,88 @@
+# Changelog
+
+All notable changes to the ScType package will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.0.0] - 2025-11-18
+
+### Added
+- **Package Structure**: Added DESCRIPTION and NAMESPACE files for proper R package structure
+- **Testing**: Created testthat-based unit test suite for core functions
+  - Tests for sctype_score() function
+  - Tests for gene_sets_prepare() function
+  - Tests for wrapper functions
+- **Documentation**: Added CHANGELOG.md and CONTRIBUTING.md
+- **Python Dependencies**: Created requirements.txt for database creation scripts
+- **Command-Line Interface**: Added argparse support to Python scripts for flexible output paths
+
+### Changed
+- **Error Handling**: Improved error messages throughout codebase
+  - Converted warnings to errors for critical failures (empty matrices, invalid inputs)
+  - Added descriptive error messages with actionable guidance
+  - Better handling of edge cases (empty gene sets, missing markers)
+- **Code Style**: Standardized coding style
+  - Replaced `!0` with `TRUE` and `!1` with `FALSE` throughout
+  - Consistent use of `<-` for assignment
+  - Improved variable naming consistency
+- **Python Scripts**: Fixed hard-coded paths
+  - create_enhanced_db.py now uses relative paths and command-line arguments
+  - create_hierarchical_db.py now uses relative paths and command-line arguments
+  - Better portability across systems
+
+### Fixed
+- **Documentation**: Fixed typo in sctype_wrapper.R example
+  - Corrected missing quote in function example
+  - Improved example formatting with \dontrun{}
+- **Safety**: Enhanced input validation in sctype_score()
+  - Check for matrix type before processing
+  - Validate matrix dimensions
+  - Ensure marker genes are found in dataset
+
+### Removed
+- **Duplicate Files**: Removed duplicate database files
+  - Deleted "ScTypeDB_full (2).xlsx"
+  - Deleted "ScTypeDB_full_original_backup.xlsx"
+  - Kept ScTypeDB_full.xlsx as canonical version
+
+### Security
+- **Note**: HTTP source loading remains an open security issue (see GitHub issues)
+  - Users should consider installing from local copy for production use
+  - Future versions will address this with package-based installation
+
+## [1.0.0] - 2022
+
+### Added
+- Initial release published in Nature Communications
+- Core sctype_score() algorithm
+- Support for Seurat objects
+- Database of marker genes for multiple tissues
+- Web portal at http://sctype.app
+
+### Features from Publication
+- Automated cell type annotation
+- Tissue type auto-detection
+- Positive and negative marker support
+- Fast computation optimized for large datasets
+
+---
+
+## Unreleased
+
+### Planned
+- Address HTTP source loading security issue
+- Add parallel processing support for large datasets
+- Expand test coverage to >80%
+- Performance benchmarks
+- Continuous integration (GitHub Actions)
+- CRAN/Bioconductor submission
+
+---
+
+## Notes
+
+For detailed information about the ScType method, see:
+- **Publication**: https://doi.org/10.1038/s41467-022-28803-w
+- **Repository**: https://github.com/IanevskiAleksandr/sc-type
+- **Web Portal**: http://sctype.app
