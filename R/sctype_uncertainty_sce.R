@@ -269,10 +269,10 @@ visualize_sctype_uncertainty_sce <- function(sce_object,
   }
 
   # Get cluster-level results
-  if (is.null(S4Vectors::metadata(sce_object)[["sctype_uncertainty_clusters"]])) {
+  if (is.null(metadata(sce_object)[["sctype_uncertainty_clusters"]])) {
     stop("Cluster-level uncertainty data not found. Run add_sctype_uncertainty_sce() first.")
   }
-  cluster_results <- S4Vectors::metadata(sce_object)[["sctype_uncertainty_clusters"]]
+  cluster_results <- metadata(sce_object)[["sctype_uncertainty_clusters"]]
 
   # Create output directory
   if (save_plots && !dir.exists(output_dir)) {
