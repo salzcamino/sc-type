@@ -1,0 +1,22 @@
+# Git LFS tracking for large binary files
+# Install Git LFS with: git lfs install
+
+# Track large data files
+*.RDS filter=lfs diff=lfs merge=lfs -text
+*.rds filter=lfs diff=lfs merge=lfs -text
+
+# Track large HTML files (generated visualizations)
+index2.html filter=lfs diff=lfs merge=lfs -text
+
+# Track Excel database files
+*.xlsx filter=lfs diff=lfs merge=lfs -text
+
+# Track image files
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.PNG filter=lfs diff=lfs merge=lfs -text
+
+# Track compressed archives
+*.tar.gz filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text

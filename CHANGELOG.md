@@ -14,8 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests for gene_sets_prepare() function
   - Tests for wrapper functions
 - **Documentation**: Added CHANGELOG.md and CONTRIBUTING.md
+- **Large Files Documentation**: Created LARGE_FILES.md explaining binary file management
 - **Python Dependencies**: Created requirements.txt for database creation scripts
 - **Command-Line Interface**: Added argparse support to Python scripts for flexible output paths
+- **Git LFS Support**: Added .gitattributes for efficient large file tracking
+  - Tracks RDS files, Excel databases, images, and large HTML files
+  - Improves repository clone performance
+- **Comprehensive .gitignore**: Enhanced from 27 to 168 lines
+  - Python: virtual environments, caching, test coverage
+  - R: history files, RStudio projects, vignettes, packages
+  - IDEs: VSCode, PyCharm, Sublime, Vim, Emacs
+  - OS: macOS, Windows, Linux specific files
 
 ### Changed
 - **Error Handling**: Improved error messages throughout codebase
