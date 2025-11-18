@@ -9,14 +9,13 @@
 #' db_=sctype_source()
 #' 
 sctype_source <- function(){
-    # load tissue auto detect
-    source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/auto_detect_tissue_type.R")
-    # load gene set preparation function
-    source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-    # load cell type annotation function
-    source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
-    # load ScType database
-    db_ = "https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_full.xlsx"
+    # Functions are now loaded from the package namespace
+    # No need to source remote files when using as an installed package
+    # All core functions (auto_detect_tissue_type, gene_sets_prepare, sctype_score)
+    # are available automatically when the package is loaded
+
+    # Return ScType database URL for backward compatibility
+    db_ <- "https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_full.xlsx"
     return(db_)
 }
 

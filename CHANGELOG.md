@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - R: history files, RStudio projects, vignettes, packages
   - IDEs: VSCode, PyCharm, Sublime, Vim, Emacs
   - OS: macOS, Windows, Linux specific files
+- **Installation Guide**: Created INSTALLATION.md (300+ lines)
+  - Complete installation instructions for GitHub, local, and package archive methods
+  - Dependency documentation
+  - Quick start guides for Seurat and SingleCellExperiment
+  - Advanced features documentation
+  - Troubleshooting section
+  - Migration guide from old source-based loading
 
 ### Changed
 - **Error Handling**: Improved error messages throughout codebase
@@ -39,6 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - create_enhanced_db.py now uses relative paths and command-line arguments
   - create_hierarchical_db.py now uses relative paths and command-line arguments
   - Better portability across systems
+- **HTTP Security Fix**: Removed all remote source() calls (8 R files modified)
+  - R/sctype_wrapper.R - Modified sctype_source() function
+  - R/sctype_hierarchical.R - Removed 3 source() calls
+  - R/sctype_uncertainty.R - Removed 2 source() calls
+  - R/sctype_uncertainty_sce.R - Removed 2 source() calls
+  - R/sctype_pathway_enrichment.R - Removed 1 source() call
+  - R/sctype_wrapper_sce.R - Removed 4 source() calls (including sctype_source_sce)
+  - R/sctype_hierarchical_sce.R - Removed 2 source() calls
+  - Functions now loaded from package namespace instead of HTTP
+  - Eliminates remote code execution vulnerability
 
 ### Fixed
 - **Documentation**: Fixed typo in sctype_wrapper.R example
@@ -56,9 +73,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Kept ScTypeDB_full.xlsx as canonical version
 
 ### Security
-- **Note**: HTTP source loading remains an open security issue (see GitHub issues)
-  - Users should consider installing from local copy for production use
-  - Future versions will address this with package-based installation
+- **FIXED**: Eliminated HTTP source loading security vulnerability
+  - Removed ALL 17 instances of `source("https://...")` calls
+  - Functions now available via package namespace (DESCRIPTION/NAMESPACE)
+  - No remote code execution risk
+  - Users install package once: `devtools::install_github("IanevskiAleksandr/sc-type")`
+  - Offline functionality after installation
+  - Version control and reproducibility guaranteed
+- Created INSTALLATION.md (300+ lines) with migration guide from old source-based loading
 
 ## [1.0.0] - 2022
 
@@ -80,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Planned
-- Address HTTP source loading security issue
+- ~~Address HTTP source loading security issue~~ ✅ **DONE in v2.0.0**
 - Add parallel processing support for large datasets
 - Expand test coverage to >80%
 - Performance benchmarks

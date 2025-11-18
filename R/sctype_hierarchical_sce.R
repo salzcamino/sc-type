@@ -43,9 +43,8 @@ run_sctype_hierarchical_sce <- function(sce_object,
     stop("Package 'SingleCellExperiment' is required but not installed.")
   }
 
-  # Source required ScType functions
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+  # ScType functions are available from package namespace
+  # Functions available: gene_sets_prepare, sctype_score
 
   # Set default marker file
   if (is.null(custom_marker_file)) {

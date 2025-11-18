@@ -29,16 +29,9 @@ run_sctype_hierarchical <- function(seurat_object,
                                     broad_name = "sctype_broad",
                                     fine_name = "sctype_fine") {
 
-    # Load required functions
-    if(!exists("gene_sets_prepare")) {
-        source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-    }
-    if(!exists("sctype_score")) {
-        source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
-    }
-    if(!exists("auto_detect_tissue_type")) {
-        source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/auto_detect_tissue_type.R")
-    }
+    # All required functions are available from package namespace
+    # No need to source remote files when using as an installed package
+    # Functions available: gene_sets_prepare, sctype_score, auto_detect_tissue_type
 
     # Check for missing arguments
     if (is.null(seurat_object)) {

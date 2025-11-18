@@ -42,9 +42,8 @@ add_sctype_uncertainty <- function(seurat_object,
   # Load required packages
   lapply(c("dplyr", "Seurat", "HGNChelper", "openxlsx"), library, character.only = TRUE)
 
-  # Source ScType functions
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+  # ScType functions are available from package namespace
+  # Functions available: gene_sets_prepare, sctype_score
 
   # Set default database
   if (is.null(database_file)) {

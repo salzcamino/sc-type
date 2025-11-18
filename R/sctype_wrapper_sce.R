@@ -41,9 +41,8 @@ run_sctype_sce <- function(sce_object,
 
   lapply(c("dplyr", "openxlsx", "HGNChelper"), library, character.only = TRUE)
 
-  # Source required ScType functions
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+  # ScType functions are available from package namespace
+  # Functions available: gene_sets_prepare, sctype_score
 
   # Set default marker file
   if (is.null(custom_marker_file)) {
@@ -178,8 +177,10 @@ run_sctype_sce <- function(sce_object,
 #' @return Character vector with database URLs
 #' @export
 sctype_source_sce <- function() {
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+  # ScType functions are now loaded from the package namespace
+  # No need to source remote files when using as an installed package
+  # All core functions (gene_sets_prepare, sctype_score) are available
+  # automatically when the package is loaded
 
   db_urls <- c(
     full = "https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_full.xlsx",

@@ -78,7 +78,8 @@ add_pathway_weighted_scores <- function(seurat_object,
 
   # First, run standard ScType uncertainty scoring
   message("Step 1/4: Running ScType uncertainty scoring...")
-  source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_uncertainty.R")
+  # ScType uncertainty functions are available from package namespace
+  # Function available: add_sctype_uncertainty
 
   seurat_object <- add_sctype_uncertainty(
     seurat_object,
