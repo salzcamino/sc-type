@@ -1,0 +1,45 @@
+Package: ScType
+Title: Fully-Automated and Ultra-Fast Cell-Type Identification
+Version: 2.1.0
+Authors@R: c(
+    person("Aleksandr", "Ianevski", email = "aleksandr.ianevski@helsinki.fi", role = c("aut", "cre")),
+    person("Claude", "AI", role = "ctb", comment = "ScType v2 enhancements")
+    )
+Description: A computational method for automated selection of marker genes
+    and cell type annotation based merely on scRNA-seq data. ScType uses
+    positive and negative marker combinations for fully-automated and
+    ultra-fast cell-type identification from single-cell transcriptomic data.
+License: GPL-3
+URL: https://github.com/IanevskiAleksandr/sc-type, http://sctype.app
+BugReports: https://github.com/IanevskiAleksandr/sc-type/issues
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 4.0.0)
+Imports:
+    dplyr,
+    HGNChelper,
+    openxlsx,
+    methods,
+    stats,
+    utils
+Suggests:
+    Seurat (>= 4.0.0),
+    SeuratObject (>= 4.0.0),
+    SingleCellExperiment,
+    SummarizedExperiment,
+    scater,
+    ggplot2,
+    patchwork,
+    ComplexHeatmap,
+    circlize,
+    scales,
+    tidyr,
+    enrichR,
+    fgsea,
+    msigdbr,
+    clusterProfiler,
+    org.Hs.eg.db,
+    scDblFinder,
+    testthat (>= 3.0.0)
+RoxygenNote: 7.2.0

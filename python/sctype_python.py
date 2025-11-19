@@ -285,6 +285,9 @@ class ScType:
         """
         Hierarchical cell type annotation (broad + fine levels).
 
+        Provides two-level annotation: broad categories (e.g., "T cells")
+        and fine subtypes (e.g., "CD8+ T cells").
+
         Parameters
         ----------
         adata : AnnData
@@ -311,12 +314,160 @@ class ScType:
         adata : AnnData
             Modified AnnData with both broad and fine annotations
         """
-        print("Hierarchical annotation is currently only available in R.")
-        print("Use R version: run_sctype_hierarchical() or run_sctype_hierarchical_sce()")
-        print("Falling back to standard annotation...")
+        # Check if cluster key exists
+        if cluster_key not in adata.obs.columns:
+            raise ValueError(f"Cluster key '{cluster_key}' not found in adata.obs")
 
-        return self.annotate(adata, tissue_type, database_file, layer, scaled,
-                           cluster_key, fine_key, plot)
+        # Source R scripts
+        print("Loading ScType R functions for hierarchical annotation...")
+        self._source_r_script("gene_sets_prepare.R")
+        self._source_r_script("sctype_score_.R")
+
+        # Set database file
+        if database_file is None:
+            database_file = f"{self.github_repo}/ScTypeDB_hierarchical.xlsx"
+
+        print(f"Reading hierarchical database for tissue: {tissue_type}")
+
+        # Load hierarchical database
+        ro.r(f'db_hier <- openxlsx::read.xlsx("{database_file}")')
+        ro.r(f'db_tissue <- db_hier[db_hier$tissueType == "{tissue_type}", ]')
+
+        # Check if database has broadCategory column
+        has_broad = list(ro.r('("broadCategory" %in% colnames(db_tissue))'))[0]
+
+        if not has_broad:
+            warnings.warn("Database does not have 'broadCategory' column. Using standard annotation.")
+            return self.annotate(adata, tissue_type, database_file, layer, scaled,
+                               cluster_key, fine_key, plot)
+
+        # Step 1: Broad annotation
+        print("Step 1: Performing broad category annotation...")
+
+        # Get unique broad categories
+        ro.r('broad_categories <- unique(db_tissue$broadCategory)')
+        ro.r('broad_categories <- broad_categories[!is.na(broad_categories)]')
+
+        # Aggregate markers by broad category
+        ro.r('''
+        broad_markers <- lapply(broad_categories, function(bc) {
+            subset_rows <- db_tissue[db_tissue$broadCategory == bc, ]
+            pos_markers <- unique(unlist(strsplit(paste(subset_rows$geneSymbolmore1, collapse=","), ",")))
+            neg_markers <- unique(unlist(strsplit(paste(subset_rows$geneSymbolmore2, collapse=","), ",")))
+            pos_markers <- pos_markers[pos_markers != "" & !is.na(pos_markers)]
+            neg_markers <- neg_markers[neg_markers != "" & !is.na(neg_markers)]
+            list(positive = pos_markers, negative = neg_markers)
+        })
+        names(broad_markers) <- broad_categories
+        ''')
+
+        # Create broad gene sets
+        ro.r('gs_broad_pos <- lapply(broad_markers, function(x) x$positive)')
+        ro.r('gs_broad_neg <- lapply(broad_markers, function(x) x$negative)')
+
+        # Convert data and run broad scoring
+        mat, genes, cells = self._adata_to_matrix(adata, layer=layer)
+
+        with localconverter(ro.default_converter + numpy2ri.converter):
+            r_mat = ro.r.matrix(mat, nrow=len(genes), ncol=len(cells))
+            ro.r.assign("scRNAseqData", r_mat)
+            ro.r.assign("gene_names", ro.StrVector(genes))
+            ro.r.assign("cell_names", ro.StrVector(cells))
+            ro.r('rownames(scRNAseqData) <- gene_names')
+            ro.r('colnames(scRNAseqData) <- cell_names')
+
+        ro.r(f'''
+        es_broad <- sctype_score(scRNAseqData = scRNAseqData,
+                                 scaled = {str(scaled).upper()},
+                                 gs = gs_broad_pos,
+                                 gs2 = gs_broad_neg)
+        ''')
+
+        # Aggregate broad scores by cluster
+        clusters = adata.obs[cluster_key].astype(str).values
+        unique_clusters = np.unique(clusters)
+
+        broad_assignments = {}
+        for cl in unique_clusters:
+            cells_in_cluster = np.where(clusters == cl)[0]
+            cell_indices = ro.IntVector([i + 1 for i in cells_in_cluster])
+
+            ro.r.assign("cluster_cells", cell_indices)
+            ro.r('es_cluster_broad <- rowSums(es_broad[, cluster_cells, drop=FALSE])')
+            ro.r('top_broad <- names(sort(es_cluster_broad, decreasing=TRUE))[1]')
+
+            broad_assignments[cl] = str(list(ro.r('top_broad'))[0])
+
+        # Step 2: Fine annotation
+        print("Step 2: Performing fine-grained annotation...")
+
+        # Prepare fine gene sets (all cell types)
+        ro.r(f'gs_fine_list <- gene_sets_prepare("{database_file}", "{tissue_type}")')
+
+        ro.r(f'''
+        es_fine <- sctype_score(scRNAseqData = scRNAseqData,
+                               scaled = {str(scaled).upper()},
+                               gs = gs_fine_list$gs_positive,
+                               gs2 = gs_fine_list$gs_negative)
+        ''')
+
+        # Aggregate fine scores by cluster and apply confidence threshold
+        fine_assignments = {}
+        for cl in unique_clusters:
+            cells_in_cluster = np.where(clusters == cl)[0]
+            cell_indices = ro.IntVector([i + 1 for i in cells_in_cluster])
+            ncells = len(cells_in_cluster)
+
+            ro.r.assign("cluster_cells", cell_indices)
+            ro.r('es_cluster_fine <- rowSums(es_fine[, cluster_cells, drop=FALSE])')
+            ro.r('es_sorted <- sort(es_cluster_fine, decreasing=TRUE)')
+
+            top_type = str(list(ro.r('names(es_sorted)[1]'))[0])
+            top_score = float(list(ro.r('as.numeric(es_sorted)[1]'))[0])
+
+            # Apply confidence threshold
+            if top_score < ncells / 4:
+                # Low confidence, use broad category
+                fine_assignments[cl] = broad_assignments[cl]
+            else:
+                fine_assignments[cl] = top_type
+
+        # Assign to cells
+        broad_annot = np.array([broad_assignments.get(cl, "Unknown") for cl in clusters])
+        fine_annot = np.array([fine_assignments.get(cl, "Unknown") for cl in clusters])
+
+        adata.obs[broad_key] = pd.Categorical(broad_annot)
+        adata.obs[fine_key] = pd.Categorical(fine_annot)
+
+        print(f"\nHierarchical annotation complete!")
+        print(f"Broad categories added to adata.obs['{broad_key}']")
+        print(f"Fine subtypes added to adata.obs['{fine_key}']")
+
+        print(f"\nBroad category distribution:")
+        print(adata.obs[broad_key].value_counts())
+        print(f"\nFine subtype distribution:")
+        print(adata.obs[fine_key].value_counts())
+
+        # Plot if requested
+        if plot:
+            if 'X_umap' in adata.obsm:
+                import matplotlib.pyplot as plt
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+                # Broad categories
+                sc.pl.umap(adata, color=broad_key, ax=ax1, show=False,
+                          title="Broad Cell Categories")
+
+                # Fine subtypes
+                sc.pl.umap(adata, color=fine_key, ax=ax2, show=False,
+                          title="Fine Cell Subtypes")
+
+                plt.tight_layout()
+                plt.show()
+            else:
+                warnings.warn("UMAP not found. Run sc.tl.umap(adata) for visualization.")
+
+        return adata
 
     def add_uncertainty(self,
                        adata: AnnData,
@@ -329,6 +480,12 @@ class ScType:
                        prefix: str = 'sctype') -> AnnData:
         """
         Add uncertainty scores and top N candidates.
+
+        Calculates confidence metrics for annotations including:
+        - Top N cell type candidates per cluster
+        - Raw ScType scores for each candidate
+        - Normalized confidence scores
+        - Confidence levels (High/Medium/Low)
 
         Parameters
         ----------
@@ -354,12 +511,160 @@ class ScType:
         adata : AnnData
             Modified AnnData with uncertainty metrics in .obs
         """
-        print("Python uncertainty scoring not yet implemented.")
-        print("Use R version: add_sctype_uncertainty() or add_sctype_uncertainty_sce()")
-        print("Running standard annotation instead...")
+        # Check if cluster key exists
+        if cluster_key not in adata.obs.columns:
+            raise ValueError(f"Cluster key '{cluster_key}' not found in adata.obs")
 
-        return self.annotate(adata, tissue_type, database_file, layer, scaled,
-                           cluster_key, f"{prefix}_top1", False)
+        # Source R scripts
+        print("Loading ScType R functions...")
+        self._source_r_script("gene_sets_prepare.R")
+        self._source_r_script("sctype_score_.R")
+
+        # Set database file
+        if database_file is None:
+            database_file = f"{self.github_repo}/ScTypeDB_full.xlsx"
+
+        # Prepare gene sets
+        print(f"Preparing gene sets for tissue: {tissue_type}")
+        ro.r(f'gs_list <- gene_sets_prepare("{database_file}", "{tissue_type}")')
+
+        # Convert data
+        print("Converting data to R format...")
+        mat, genes, cells = self._adata_to_matrix(adata, layer=layer)
+
+        with localconverter(ro.default_converter + numpy2ri.converter):
+            r_mat = ro.r.matrix(mat, nrow=len(genes), ncol=len(cells))
+            ro.r.assign("scRNAseqData", r_mat)
+            ro.r.assign("gene_names", ro.StrVector(genes))
+            ro.r.assign("cell_names", ro.StrVector(cells))
+            ro.r('rownames(scRNAseqData) <- gene_names')
+            ro.r('colnames(scRNAseqData) <- cell_names')
+
+        # Run ScType scoring
+        print("Running ScType scoring...")
+        ro.r(f'''
+        es.max <- sctype_score(scRNAseqData = scRNAseqData,
+                              scaled = {str(scaled).upper()},
+                              gs = gs_list$gs_positive,
+                              gs2 = gs_list$gs_negative)
+        ''')
+
+        # Get clusters
+        clusters = adata.obs[cluster_key].astype(str).values
+        unique_clusters = np.unique(clusters)
+
+        # Calculate top N candidates and scores for each cluster
+        print(f"Calculating top {top_n} candidates per cluster...")
+
+        cluster_results = {}
+        for cl in unique_clusters:
+            cells_in_cluster = np.where(clusters == cl)[0]
+            cell_indices = ro.IntVector([i + 1 for i in cells_in_cluster])
+            ncells = len(cells_in_cluster)
+
+            ro.r.assign("cluster_cells", cell_indices)
+            ro.r('es_cluster <- rowSums(es.max[, cluster_cells, drop=FALSE])')
+            ro.r(f'es_sorted <- sort(es_cluster, decreasing=TRUE)[1:{min(top_n, 10)}]')
+
+            # Get top N types and scores
+            top_types = list(ro.r('names(es_sorted)'))
+            top_scores = list(ro.r('as.numeric(es_sorted)'))
+
+            # Pad with "None" if fewer than top_n candidates
+            while len(top_types) < top_n:
+                top_types.append("None")
+                top_scores.append(0.0)
+
+            # Calculate confidence score (normalized)
+            if top_scores[0] > 0:
+                # Confidence based on:
+                # 1. Absolute score strength
+                # 2. Relative score (compared to threshold)
+                score_strength = min(top_scores[0] / (ncells / 2), 1.0)  # Cap at 1.0
+
+                # Difference between top 2 scores (higher diff = more confident)
+                if len(top_scores) > 1 and top_scores[1] > 0:
+                    score_diff = (top_scores[0] - top_scores[1]) / top_scores[0]
+                else:
+                    score_diff = 1.0
+
+                confidence_score = (score_strength + score_diff) / 2.0
+            else:
+                confidence_score = 0.0
+
+            # Assign confidence level
+            if confidence_score >= 0.7:
+                confidence_level = "High"
+            elif confidence_score >= 0.4:
+                confidence_level = "Medium"
+            elif confidence_score >= 0.1:
+                confidence_level = "Low"
+            else:
+                confidence_level = "Very Low"
+
+            # Assign top cell type (or Unknown if low confidence)
+            if top_scores[0] < ncells / 4:
+                assigned_type = "Unknown"
+            else:
+                assigned_type = top_types[0]
+
+            cluster_results[cl] = {
+                'assigned_type': assigned_type,
+                'top_types': top_types[:top_n],
+                'top_scores': top_scores[:top_n],
+                'confidence_score': confidence_score,
+                'confidence_level': confidence_level,
+                'ncells': ncells
+            }
+
+        # Add results to AnnData object
+        print("Adding uncertainty metrics to AnnData...")
+
+        # Initialize columns
+        adata.obs[prefix] = ""
+        adata.obs[f"{prefix}_confidence"] = 0.0
+        adata.obs[f"{prefix}_confidence_level"] = "Unknown"
+
+        for i in range(top_n):
+            adata.obs[f"{prefix}_top{i+1}"] = ""
+            adata.obs[f"{prefix}_score{i+1}"] = 0.0
+
+        # Fill in values
+        for cl in unique_clusters:
+            cluster_mask = clusters == cl
+            result = cluster_results[cl]
+
+            adata.obs.loc[cluster_mask, prefix] = result['assigned_type']
+            adata.obs.loc[cluster_mask, f"{prefix}_confidence"] = result['confidence_score']
+            adata.obs.loc[cluster_mask, f"{prefix}_confidence_level"] = result['confidence_level']
+
+            for i in range(top_n):
+                adata.obs.loc[cluster_mask, f"{prefix}_top{i+1}"] = result['top_types'][i]
+                adata.obs.loc[cluster_mask, f"{prefix}_score{i+1}"] = result['top_scores'][i]
+
+        # Convert categorical
+        adata.obs[prefix] = pd.Categorical(adata.obs[prefix])
+        adata.obs[f"{prefix}_confidence_level"] = pd.Categorical(
+            adata.obs[f"{prefix}_confidence_level"],
+            categories=["High", "Medium", "Low", "Very Low", "Unknown"],
+            ordered=True
+        )
+
+        print(f"\nUncertainty scoring complete!")
+        print(f"Added annotations to adata.obs['{prefix}']")
+        print(f"\nCell type distribution:")
+        print(adata.obs[prefix].value_counts())
+        print(f"\nConfidence level distribution:")
+        print(adata.obs[f"{prefix}_confidence_level"].value_counts())
+
+        print(f"\nNew columns added:")
+        print(f"  - {prefix}: Cell type annotations")
+        print(f"  - {prefix}_confidence: Confidence score (0-1)")
+        print(f"  - {prefix}_confidence_level: Confidence level")
+        for i in range(top_n):
+            print(f"  - {prefix}_top{i+1}, {prefix}_score{i+1}: Top {i+1} candidate and score")
+
+        return adata
 
     def _get_markers_from_database(self,
                                    database_file: str,

@@ -36,7 +36,20 @@ sctype_score <- function(scRNAseqData, scaled = !0, gs, gs2 = NULL, gene_names_t
   } else {
     # Default: frequency-based weighting
     marker_stat = sort(table(unlist(gs)), decreasing = T);
-    marker_sensitivity = data.frame(score_marker_sensitivity = scales::rescale(as.numeric(marker_stat), to = c(0,1), from = c(length(gs),1)),
+
+    # Check if scales package is available, otherwise use manual rescaling
+    if (requireNamespace("scales", quietly = TRUE)) {
+      rescaled_values = scales::rescale(as.numeric(marker_stat), to = c(0,1), from = c(length(gs),1))
+    } else {
+      # Manual rescaling if scales is not available
+      vals = as.numeric(marker_stat)
+      from_min = 1
+      from_max = length(gs)
+      rescaled_values = (vals - from_min) / (from_max - from_min)
+      rescaled_values = 1 - rescaled_values  # Invert so rare markers get high scores
+    }
+
+    marker_sensitivity = data.frame(score_marker_sensitivity = rescaled_values,
                                         gene_ = names(marker_stat), stringsAsFactors = !1)
   }
 

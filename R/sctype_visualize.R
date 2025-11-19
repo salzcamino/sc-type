@@ -38,16 +38,19 @@ visualize_sctype_markers <- function(seurat_object,
                                      save_plots = FALSE,
                                      output_dir = "sctype_plots") {
 
-  # Load required packages
-  required_packages <- c("Seurat", "ggplot2", "dplyr", "openxlsx", "ComplexHeatmap", "circlize", "patchwork")
-  for (pkg in required_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      warning(paste0("Package '", pkg, "' not installed. Some plots may not be generated."))
-    }
+  # Check required packages
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
   }
-
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
+  if (!requireNamespace("openxlsx", quietly = TRUE)) {
+    stop("Package 'openxlsx' required. Install with: install.packages('openxlsx')")
+  }
+  if (!requireNamespace("Seurat", quietly = TRUE)) {
+    stop("Package 'Seurat' required. Install with: install.packages('Seurat')")
+  }
 
   # Check if annotation column exists
   if (!annotation_col %in% colnames(seurat_object@meta.data)) {
@@ -341,9 +344,10 @@ generate_heatmap <- function(seurat_object, markers_list, annotation_col, assay)
     warning("ComplexHeatmap package not installed. Skipping heatmap. Install with: BiocManager::install('ComplexHeatmap')")
     return(NULL)
   }
-
-  library(ComplexHeatmap)
-  library(circlize)
+  if (!requireNamespace("circlize", quietly = TRUE)) {
+    warning("circlize package not installed. Install with: install.packages('circlize')")
+    return(NULL)
+  }
 
   # Collect all markers
   all_markers <- unique(unlist(lapply(markers_list, function(x) c(x$positive, x$negative))))

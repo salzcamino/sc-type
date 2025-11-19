@@ -35,14 +35,15 @@ detect_doublets_scdblfinder <- function(seurat_object,
     stop("SingleCellExperiment package not found. Install with:\n  BiocManager::install('SingleCellExperiment')")
   }
 
-  library(scDblFinder)
-  library(SingleCellExperiment)
+  if (!requireNamespace("Seurat", quietly = TRUE)) {
+    stop("Seurat package not found. Install with:\n  install.packages('Seurat')")
+  }
 
   message("Converting Seurat to SingleCellExperiment...")
-  sce <- as.SingleCellExperiment(seurat_object, assay = assay)
+  sce <- Seurat::as.SingleCellExperiment(seurat_object, assay = assay)
 
   message("Running scDblFinder...")
-  sce <- scDblFinder(sce, dbr = dbr, clusters = clusters, verbose = FALSE)
+  sce <- scDblFinder::scDblFinder(sce, dbr = dbr, clusters = clusters, verbose = FALSE)
 
   # Extract results
   seurat_object$doublet_score <- sce$scDblFinder.score

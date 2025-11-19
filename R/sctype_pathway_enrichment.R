@@ -52,8 +52,12 @@ add_pathway_weighted_scores <- function(seurat_object,
     }
   })
 
-  library(Seurat)
-  library(dplyr)
+  if (!requireNamespace("Seurat", quietly = TRUE)) {
+    stop("Package 'Seurat' required. Install with: install.packages('Seurat')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
 
   # Check for enrichment tool packages
   if ("enrichr" %in% enrichment_tools && !requireNamespace("enrichR", quietly = TRUE)) {
@@ -202,7 +206,6 @@ run_enrichr <- function(genes) {
   }
 
   tryCatch({
-    library(enrichR)
 
     # Use cell type-relevant databases
     dbs <- c(
@@ -255,8 +258,6 @@ run_fgsea <- function(ranked_genes) {
   }
 
   tryCatch({
-    library(fgsea)
-    library(msigdbr)
 
     # Get gene sets
     # Use cell type signatures and hallmark pathways
@@ -299,8 +300,6 @@ run_go_enrichment <- function(genes) {
   }
 
   tryCatch({
-    library(clusterProfiler)
-    library(org.Hs.eg.db)
 
     # Convert symbols to Entrez IDs
     gene_entrez <- bitr(
@@ -588,8 +587,12 @@ visualize_pathway_support <- function(seurat_object,
                                      save_plots = FALSE,
                                      output_dir = "pathway_plots") {
 
-  library(ggplot2)
-  library(dplyr)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
+  }
+  if (!requireNamespace("dplyr", quietly = TRUE)) {
+    stop("Package 'dplyr' required. Install with: install.packages('dplyr')")
+  }
 
   # Check if pathway scores exist
   if (!paste0(annotation_prefix, "_pathway_score") %in% colnames(seurat_object@meta.data)) {
@@ -603,60 +606,60 @@ visualize_pathway_support <- function(seurat_object,
   plot_list <- list()
 
   # Plot 1: ScType vs Pathway confidence
-  p1 <- ggplot(seurat_object@meta.data,
-               aes(x = !!sym(paste0(annotation_prefix, "_confidence")),
-                   y = !!sym(paste0(annotation_prefix, "_pathway_score")),
-                   color = !!sym(paste0(annotation_prefix, "_top1")))) +
-    geom_point(alpha = 0.6, size = 2) +
-    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
-    labs(title = "ScType vs Pathway Enrichment Confidence",
+  p1 <- ggplot2::ggplot(seurat_object@meta.data,
+               ggplot2::aes(x = !!dplyr::sym(paste0(annotation_prefix, "_confidence")),
+                   y = !!dplyr::sym(paste0(annotation_prefix, "_pathway_score")),
+                   color = !!dplyr::sym(paste0(annotation_prefix, "_top1")))) +
+    ggplot2::geom_point(alpha = 0.6, size = 2) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
+    ggplot2::labs(title = "ScType vs Pathway Enrichment Confidence",
          subtitle = "Points above diagonal have stronger pathway support",
          x = "ScType Confidence", y = "Pathway Support Score",
          color = "Cell Type") +
-    theme_minimal() +
-    theme(legend.position = "right")
+    ggplot2::theme_minimal() +
+    ggplot2::theme(legend.position = "right")
 
   plot_list$sctype_vs_pathway <- p1
 
   # Plot 2: Combined confidence UMAP
   if ("umap" %in% names(seurat_object@reductions)) {
-    p2 <- FeaturePlot(seurat_object,
+    p2 <- Seurat::FeaturePlot(seurat_object,
                      features = paste0(annotation_prefix, "_combined_confidence"),
                      reduction = "umap") +
-      scale_color_gradient2(low = "blue", mid = "yellow", high = "red",
+      ggplot2::scale_color_gradient2(low = "blue", mid = "yellow", high = "red",
                            midpoint = 0.5) +
-      ggtitle("Combined Confidence (ScType + Pathway)")
+      ggplot2::ggtitle("Combined Confidence (ScType + Pathway)")
 
     plot_list$combined_umap <- p2
   }
 
   # Plot 3: Pathway support levels
   support_data <- seurat_object@meta.data %>%
-    select(!!sym(paste0(annotation_prefix, "_pathway_support"))) %>%
-    rename(support = 1)
+    dplyr::select(!!dplyr::sym(paste0(annotation_prefix, "_pathway_support"))) %>%
+    dplyr::rename(support = 1)
 
   support_data$support <- factor(support_data$support,
                                  levels = c("High", "Medium", "Low", "None"))
 
-  p3 <- ggplot(support_data, aes(x = support, fill = support)) +
-    geom_bar() +
-    scale_fill_manual(values = c("High" = "#2ECC40", "Medium" = "#FFDC00",
+  p3 <- ggplot2::ggplot(support_data, ggplot2::aes(x = support, fill = support)) +
+    ggplot2::geom_bar() +
+    ggplot2::scale_fill_manual(values = c("High" = "#2ECC40", "Medium" = "#FFDC00",
                                  "Low" = "#FF4136", "None" = "#AAAAAA")) +
-    labs(title = "Pathway Support Levels",
+    ggplot2::labs(title = "Pathway Support Levels",
          x = "Pathway Support", y = "Number of Cells") +
-    theme_minimal() +
-    theme(legend.position = "none")
+    ggplot2::theme_minimal() +
+    ggplot2::theme(legend.position = "none")
 
   plot_list$support_levels <- p3
 
   if (save_plots) {
-    ggsave(file.path(output_dir, "sctype_vs_pathway.png"), p1,
+    ggplot2::ggsave(file.path(output_dir, "sctype_vs_pathway.png"), p1,
            width = 12, height = 8, dpi = 300)
     if (!is.null(plot_list$combined_umap)) {
-      ggsave(file.path(output_dir, "combined_confidence_umap.png"), p2,
+      ggplot2::ggsave(file.path(output_dir, "combined_confidence_umap.png"), p2,
              width = 10, height = 8, dpi = 300)
     }
-    ggsave(file.path(output_dir, "pathway_support_levels.png"), p3,
+    ggplot2::ggsave(file.path(output_dir, "pathway_support_levels.png"), p3,
            width = 10, height = 6, dpi = 300)
   }
 

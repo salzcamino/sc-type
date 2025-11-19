@@ -305,7 +305,7 @@ run_sctype_v2 <- function(seurat_object,
         # Add top N candidates and scores
         for (i in 1:top_n) {
             seurat_object_res@meta.data[cluster_cells, paste0(name, "_top", i)] <- cl_result[[paste0("top", i, "_celltype")]]
-            seurat_object_res@meta.data[cluster_cells, paste0(name, "_score", i)]] <- cl_result[[paste0("top", i, "_score")]]
+            seurat_object_res@meta.data[cluster_cells, paste0(name, "_score", i)] <- cl_result[[paste0("top", i, "_score")]]
         }
     }
 
